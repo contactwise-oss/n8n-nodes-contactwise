@@ -1,0 +1,47 @@
+{
+  "name": "ContactWise: SMS to a list of recipients",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "7c3e1b2a-4d5f-4a6b-8c7d-9e0f1a2b3c01",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  { json: { name: 'Asha', phone: '98765 43210' } },\n  { json: { name: 'Ravi', phone: '+91 91234-56789' } },\n];"
+      },
+      "id": "7c3e1b2a-4d5f-4a6b-8c7d-9e0f1a2b3c02",
+      "name": "Recipients",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "resource": "sms",
+        "operation": "send",
+        "senderId": "CWDEMO",
+        "to": "={{ $json.phone }}",
+        "message": "=Dear {{ $json.name }}, your appointment is confirmed for tomorrow. - CWDEMO",
+        "templateId": "1207161234567890123",
+        "entityId": "",
+        "serviceType": "transactional",
+        "options": {}
+      },
+      "id": "7c3e1b2a-4d5f-4a6b-8c7d-9e0f1a2b3c03",
+      "name": "Send SMS",
+      "type": "n8n-nodes-contactwise.contactWiseSms",
+      "typeVersion": 1,
+      "position": [480, 0],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Start": { "main": [[{ "node": "Recipients", "type": "main", "index": 0 }]] },
+    "Recipients": { "main": [[{ "node": "Send SMS", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}

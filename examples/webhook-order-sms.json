@@ -1,0 +1,44 @@
+{
+  "name": "ContactWise: SMS on new order (webhook)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "order-created",
+        "options": {}
+      },
+      "id": "5f1a7a4e-1f55-4f6e-9c1e-2a0f0d3b1a01",
+      "name": "Order created",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "webhookId": "0b7c2f9e-7a40-4f7e-9d5c-6c1d2b8e3f10"
+    },
+    {
+      "parameters": {
+        "resource": "sms",
+        "operation": "send",
+        "senderId": "CWDEMO",
+        "to": "={{ $json.body.customer.phone }}",
+        "message": "=Hi {{ $json.body.customer.name }}, your order {{ $json.body.orderId }} has been placed. - CWDEMO",
+        "templateId": "1207161234567890123",
+        "entityId": "",
+        "serviceType": "transactional",
+        "options": {
+          "customId": "={{ $json.body.orderId }}"
+        }
+      },
+      "id": "5f1a7a4e-1f55-4f6e-9c1e-2a0f0d3b1a02",
+      "name": "Send order SMS",
+      "type": "n8n-nodes-contactwise.contactWiseSms",
+      "typeVersion": 1,
+      "position": [240, 0]
+    }
+  ],
+  "connections": {
+    "Order created": {
+      "main": [[{ "node": "Send order SMS", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" }
+}
