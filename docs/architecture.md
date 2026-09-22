@@ -52,7 +52,7 @@ Each input item makes one API call; there's no batching in Phase 1.
 
 1. Resolve the entity ID: the node field, else the credential default, else an item error. **No API call** is made in the error case.
 2. Normalize `to` to E.164 (`normalizeIndianMobile`). An invalid number becomes an item error, **with no API call**. More than 10 'Metadata' pairs fails the same way.
-3. `POST /v1/sms/{tenantId}/send` with the source header `X-CW-Source: n8n-nodes-contactwise/<package version>` (name to confirm in TIN-6).
+3. `POST /v1/sms/{tenantId}/send` with `source: "n8n"` in the body, which the API records as the entry point so n8n traffic can be counted (TIN-6). The `X-CW-Source: n8n-nodes-contactwise/<package version>` header is still sent to identify the node version; the API doesn't read it today.
 4. Map the response to an output item. On failure, `interpretFailure()` decides the wording and whether the SMS was definitely not sent. Only 429/503 are retried (`nextRetryDelayMs()`, waiting with n8n-workflow's `sleep`). Everything else throws a `NodeApiError` built from sanitized fields; the raw request error is never attached, because it carries the API key. Always keep `pairedItem`.
 
 With Continue On Fail, a failed item's output is `{ error: <message>, errorDetails: { httpStatus, outcome, codes, messages, traceId, description } }`. `errorDetails` appears for API failures only; validation failures (invalid 'To', missing entity, too many metadata pairs) carry just `error`. `error` stays a string, following the n8n convention downstream nodes expect.

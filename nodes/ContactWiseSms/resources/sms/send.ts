@@ -9,6 +9,8 @@ const showForSend = { show: { resource: ['sms'], operation: ['send'] } };
 const SERVICE_TYPE_CODES: Record<string, number> = { transactional: 0, promotional: 1 };
 const MESSAGE_TYPE_CODES: Record<string, number> = { text: 0, unicode: 1, auto: 2 };
 const MAX_METADATA_PAIRS = 10;
+/** Entry point recorded by the API, so messages sent through n8n can be counted (TIN-6). */
+const REQUEST_SOURCE = 'n8n';
 
 interface SendOptions {
 	messageType?: string;
@@ -225,6 +227,7 @@ export async function send(this: IExecuteFunctions, itemIndex: number): Promise<
 			metadata: Object.fromEntries(metadataPairs.map(({ name, value }) => [name, value])),
 		}),
 		...(options.callbackUrl && { callbackUrl: options.callbackUrl }),
+		source: REQUEST_SOURCE,
 	};
 
 	const response = await contactWiseApiRequest.call(

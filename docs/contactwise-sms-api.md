@@ -33,6 +33,7 @@ Used by the credential's Test button. It sends no message.
 | `customId` | string | no | Options › Custom ID | Echoed back in delivery reports |
 | `metadata` | object (string → string) | no | Options › Metadata | Max 10 pairs; echoed back in delivery reports |
 | `callbackUrl` | URI | no | Options › Callback URL | Overrides the org-wide delivery-report URL |
+| `source` | string | no (API) | constant `"n8n"` | Entry point that accepted the message, used to count n8n traffic (TIN-6). Not in the public docs: the API marks it internal and defaults it to `"api"`. The API may stop honouring caller values (TIN-28) |
 
 Always send the fields marked "yes", even when they hold their default values.
 

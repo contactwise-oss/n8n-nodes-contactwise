@@ -67,6 +67,7 @@ describe('ContactWise SMS: Send', () => {
 			messageType: 2,
 			serviceType: 0,
 			flash: false,
+			source: 'n8n',
 		});
 		expect(requests[0].headers['x-cw-api-key']).toBe(TEST_API_KEY);
 		expect(requests[0].headers['x-cw-source']).toMatch(/^n8n-nodes-contactwise\/\d+\.\d+\.\d+/);
