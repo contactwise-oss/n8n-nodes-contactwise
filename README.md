@@ -1,4 +1,4 @@
-# n8n-nodes-contactwise
+# @contactwise/n8n-nodes-contactwise
 
 Send DLT-compliant SMS to recipients in India from your [n8n](https://n8n.io/) workflows and AI agents, using [ContactWise](https://docs.contactwise.io/).
 
@@ -12,7 +12,7 @@ Send DLT-compliant SMS to recipients in India from your [n8n](https://n8n.io/) w
 
 ## Installation
 
-**Self-hosted n8n:** go to **Settings › Community Nodes › Install**, enter `n8n-nodes-contactwise`, and confirm. See n8n's [community node installation guide](https://docs.n8n.io/integrations/community-nodes/installation/).
+**Self-hosted n8n:** go to **Settings › Community Nodes › Install**, enter `@contactwise/n8n-nodes-contactwise`, and confirm. See n8n's [community node installation guide](https://docs.n8n.io/integrations/community-nodes/installation/).
 
 **n8n Cloud:** available from the nodes panel once n8n has verified the package.
 

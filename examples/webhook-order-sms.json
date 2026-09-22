@@ -30,7 +30,7 @@
       },
       "id": "5f1a7a4e-1f55-4f6e-9c1e-2a0f0d3b1a02",
       "name": "Send order SMS",
-      "type": "n8n-nodes-contactwise.contactWiseSms",
+      "type": "@contactwise/n8n-nodes-contactwise.contactWiseSms",
       "typeVersion": 1,
       "position": [240, 0]
     }

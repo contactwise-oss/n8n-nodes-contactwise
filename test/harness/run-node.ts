@@ -17,7 +17,7 @@ import { mock } from 'vitest-mock-extended';
 
 import { TestCredentialsHelper } from './credentials-helper';
 
-export const PACKAGE_NAME = 'n8n-nodes-contactwise';
+export const PACKAGE_NAME = '@contactwise/n8n-nodes-contactwise';
 
 export interface RunNodeOptions {
 	/** Node class instance under test, e.g. `new ContactWiseSms()`. */

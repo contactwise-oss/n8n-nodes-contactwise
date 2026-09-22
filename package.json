@@ -1,5 +1,5 @@
 {
-	"name": "n8n-nodes-contactwise",
+	"name": "@contactwise/n8n-nodes-contactwise",
 	"version": "0.1.0",
 	"description": "n8n nodes for the ContactWise messaging API: send DLT-compliant SMS to Indian mobile numbers",
 	"license": "MIT",
@@ -13,18 +13,23 @@
 		"india"
 	],
 	"author": {
-		"name": "Lakshmikanth",
-		"email": "blakshmikanth@gmail.com"
+		"name": "ContactWise",
+		"email": "lakshmikanth@contactwise.io"
 	},
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/ContactWise/n8n-nodes-contactwise.git"
 	},
+	"publishConfig": {
+		"access": "public"
+	},
 	"scripts": {
 		"build": "n8n-node build",
 		"build:watch": "tsc --watch",
 		"dev": "n8n-node dev",
-		"dev:docker": "n8n-node build && docker run --rm -it -p 5678:5678 -e N8N_DEV_RELOAD=true -v \"$PWD/dist:/home/node/.n8n/custom/n8n-nodes-contactwise:ro\" n8nio/n8n:2.40.5",
+		"dev:docker": "n8n-node build && sh scripts/dev-docker.sh",
+		"dev:docker:logs": "docker logs -f n8n-contactwise-dev",
+		"dev:docker:stop": "docker rm -f n8n-contactwise-dev",
 		"lint": "n8n-node lint",
 		"lint:fix": "n8n-node lint --fix",
 		"typecheck": "tsc -p tsconfig.test.json",

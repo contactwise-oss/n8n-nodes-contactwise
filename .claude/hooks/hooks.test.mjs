@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const H = path.dirname(fileURLToPath(import.meta.url));
 const P = mkdtempSync(path.join(tmpdir(), 'guard-hooks-'));
 writeFileSync(path.join(P, 'package.json'), JSON.stringify({
-  name: 'n8n-nodes-contactwise',
+  name: '@contactwise/n8n-nodes-contactwise',
   devDependencies: { typescript: '5.9.2' },
   peerDependencies: { 'n8n-workflow': '*' },
 }, null, 2));
@@ -20,7 +20,7 @@ const cases = [
   ['guard-publish', bash('cd x && npm publish --access public'), 2, 'chained npm publish'],
   ['guard-publish', bash('pnpm publish'), 2, 'pnpm publish'],
   ['guard-publish', bash('yarn npm publish'), 2, 'yarn npm publish'],
-  ['guard-publish', bash('npm unpublish n8n-nodes-contactwise@0.1.0'), 2, 'npm unpublish'],
+  ['guard-publish', bash('npm unpublish @contactwise/n8n-nodes-contactwise@0.1.0'), 2, 'npm unpublish'],
   ['guard-publish', bash('npx n8n-node release --publish'), 2, 'n8n-node release --publish'],
   ['guard-publish', bash('npm run release -- --publish'), 2, 'npm run release -- --publish'],
   ['guard-publish', bash('GITHUB_ACTIONS=true npm run release'), 2, 'fake GITHUB_ACTIONS'],

@@ -10,7 +10,7 @@ A condensed version of n8n's verification guidelines, UX guidelines and code sta
 - English only: UI text, error messages and README.
 - MIT license and a public GitHub repo; the npm `repository` URL and maintainer must match GitHub.
 - Published from **GitHub Actions with npm provenance** (mandatory since May 1, 2026).
-- `npm run lint` and `npx @n8n/scan-community-package n8n-nodes-contactwise` pass.
+- `npm run lint` and `npx @n8n/scan-community-package @contactwise/n8n-nodes-contactwise` pass.
 - README covers usage, authentication setup and example workflows.
 - Trigger nodes must be programmatic style. Declarative and programmatic nodes can share a package.
 

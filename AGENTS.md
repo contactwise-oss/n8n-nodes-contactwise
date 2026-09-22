@@ -4,7 +4,7 @@ Guidance for AI coding agents (Claude Code, Codex and others) working in this re
 
 ## What this is
 
-`n8n-nodes-contactwise` is an n8n community node package for the ContactWise messaging API. The repo is public, MIT-licensed, and has to pass n8n's **verified community node** review, which is what makes a node installable on n8n Cloud.
+`@contactwise/n8n-nodes-contactwise` is an n8n community node package for the ContactWise messaging API. The repo is public, MIT-licensed, and has to pass n8n's **verified community node** review, which is what makes a node installable on n8n Cloud.
 
 Phase 1 (current) is the `ContactWise API` credential plus the `ContactWise SMS` node: one operation (Send), Indian recipients only, with DLT values (sender, template ID, entity ID, body) entered manually. The Trigger node, API-driven dropdowns and WhatsApp come later. Don't build them unless the task asks for it.
 
@@ -14,7 +14,9 @@ Phase 1 (current) is the `ContactWise API` credential plus the `ContactWise SMS`
 
 ```bash
 npm run dev        # build + watch, then run a local n8n via `npx n8n` with the node linked; http://localhost:5678
-npm run dev:docker # build, then run n8n 2.40.5 in Docker with dist/ mounted as a custom node (no watch: rerun after changes)
+npm run dev:docker # build, then (re)start n8n 2.40.5 in Docker on :5678 with the package installed as a community node.
+                   # Rerun after every change (the build replaces dist/). n8n data persists in the n8n-contactwise-dev volume
+npm run dev:docker:logs / dev:docker:stop
 npm run build
 npm run lint       # n8n community-node lint rules; `npm run lint:fix` autofixes
 npm run typecheck  # tsc over nodes/, credentials/ and test/ (tsconfig.test.json)
@@ -24,7 +26,7 @@ npx vitest run test/path/file.test.ts -t "test name"   # one file / one test
 npm run check:deps # fails if package.json has any runtime dependency
 npm run release    # local run: lint, build, version bump, changelog, tag, push. It does NOT publish:
                    # the pushed tag triggers .github/workflows/publish.yml, which publishes with npm provenance
-npx @n8n/scan-community-package n8n-nodes-contactwise   # n8n's verification scan (runs against the published package)
+npx @n8n/scan-community-package @contactwise/n8n-nodes-contactwise   # n8n's verification scan (runs against the published package)
 ```
 
 `npm run dev` needs a Node version with prebuilt binaries for n8n's native modules. On Node 26 it stalled in `node-gyp` while installing n8n (2026-09-22), so use Node 24 LTS or `npm run dev:docker`.

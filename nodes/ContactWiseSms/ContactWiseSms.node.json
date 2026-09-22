@@ -1,5 +1,5 @@
 {
-	"node": "n8n-nodes-contactwise",
+	"node": "@contactwise/n8n-nodes-contactwise",
 	"nodeVersion": "1.0",
 	"codexVersion": "1.0",
 	"categories": ["Communication"],
