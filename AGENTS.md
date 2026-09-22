@@ -17,6 +17,10 @@ npm run dev        # build + watch, then run a local n8n via `npx n8n` with the 
 npm run dev:docker # build, then run n8n 2.40.5 in Docker with dist/ mounted as a custom node (no watch: rerun after changes)
 npm run build
 npm run lint       # n8n community-node lint rules; `npm run lint:fix` autofixes
+npm run typecheck  # tsc over nodes/, credentials/ and test/ (tsconfig.test.json)
+npm test           # Vitest, network closed by nock; `npm test -- --coverage` enforces the 90% gate
+npx vitest run test/path/file.test.ts -t "test name"   # one file / one test
+npm run check:deps # fails if package.json has any runtime dependency
 npm run release    # local run: lint, build, version bump, changelog, tag, push. It does NOT publish:
                    # the pushed tag triggers .github/workflows/publish.yml, which publishes with npm provenance
 npx @n8n/scan-community-package n8n-nodes-contactwise   # n8n's verification scan (runs against the published package)
@@ -24,7 +28,7 @@ npx @n8n/scan-community-package n8n-nodes-contactwise   # n8n's verification sca
 
 `npm run dev` needs a Node version with prebuilt binaries for n8n's native modules. On Node 26 it stalled in `node-gyp` while installing n8n (2026-09-22), so use Node 24 LTS or `npm run dev:docker`.
 
-Test commands get defined with the test harness (see the Decisions section in `docs/architecture.md`). Never use `n8n-node release --publish`: a package published from a laptop has no provenance and can't be verified.
+Never use `n8n-node release --publish`: a package published from a laptop has no provenance and can't be verified.
 
 ## Rules the code won't tell you
 
@@ -35,6 +39,7 @@ Test commands get defined with the test harness (see the Decisions section in `d
 - **Published node versions are frozen.** Breaking parameter or behaviour changes go in a new node version.
 - When you add, rename or remove a node or credential, update `n8n.nodes` / `n8n.credentials` in `package.json`. Those entries point at `dist/` files.
 - User-facing text is English and follows n8n copy rules (Title Case labels, sentence-case descriptions, booleans start with "Whether").
+- **The n8n linter covers every `.ts` file, tests included.** No `process`, `setTimeout`, `globalThis` or `__dirname`, and no Node built-ins except `crypto`. Use n8n-workflow's `sleep` for waits. Config files that need Node APIs are `.mjs`.
 
 ## Read before working on…
 

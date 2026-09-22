@@ -40,6 +40,8 @@ Always send the fields marked "yes", even when they hold their default values.
 | 500 | `{ "error": "An unexpected error occurred", "traceId" }` | **Outcome unknown**: the SMS may have been sent | **Never** |
 | 502 / 504 / timeout | from the gateway, possibly not JSON | Outcome unknown | **Never** |
 
+The fake API in `test/fixtures/contactwise-api.ts` has one scenario per row of this table. Change both together.
+
 Error codes: 1001 tenant · 9000 country · 9002–9004 sender ID · 9007 recipient · 9008/9009 body · 9010 rate limited · 9011 backend unavailable.
 
 Branch on `code`, never on `message`, because the wording can change. The JSON type of `code` is unconfirmed, so accept both numbers and strings.

@@ -67,12 +67,30 @@ These are the agreed public boundaries tests are written at. They count as "pre-
 
 The expected values for seam 2 come from `docs/contactwise-sms-api.md` (the request field table and the error table), never from the implementation.
 
+### How tests are laid out
+
+Tests live in a top-level `test/` folder, not next to the code. `tsconfig.json` compiles all of `nodes/**` into `dist/`, so tests there would ship in the package.
+
+| Path | What it is |
+|---|---|
+| `test/setup.ts` | Closes the network before every test (`nock.disableNetConnect()`) |
+| `test/harness/run-node.ts` | `runNode({ node, parameters, credentialTypes, credentials, input, continueOnFail })` runs one node through n8n-core's `WorkflowExecute` and returns `{ items, error, run }` |
+| `test/harness/credentials-helper.ts` | Serves credentials from memory and applies `authenticate` (function or generic `={{$credentials.x}}`) |
+| `test/harness/probe-node.ts` | Test-only node and credential that prove the harness itself |
+| `test/fixtures/contactwise-api.ts` | `interceptSend(sendScenarios.x())`: a fake API with one scenario per error-table row. It records each request body and headers. |
+
+Harness facts found in the spike (2026-09-22):
+- `vitest.config.mjs` aliases `n8n-workflow` to its **CommonJS** build. n8n loads community nodes with `require()`, so node code and n8n-core must share one n8n-workflow instance. With two copies, `error instanceof NodeApiError` is false for errors n8n-core creates. A harness test guards this.
+- n8n's defaults are wrong for SMS and must be overridden by our error mapping. A 500 surfaces as "The service was not able to process your request". A timeout says "consider setting the 'Retry on Fail' option", but retrying an SMS after a timeout can send it twice.
+- `nock.replyWithError` needs an `Error` instance. A plain object makes the request hang.
+
 ## Decisions
 
 | Topic | Status | Notes |
 |---|---|---|
 | Node style for `ContactWise SMS` | **Programmatic** (2026-09-22) | Needed for selective retry (429/503 only, honouring `Retry-After`) and direct unit testing of `execute()`, and it keeps full versioning available. The Trigger must be programmatic anyway. Trade-off accepted: more code than declarative, which n8n calls the faster route to approval. |
-| Test depth | **Vitest, L1 + L2** (2026-09-22) | L1: unit tests of pure logic (normalization, error mapping, retry decisions). L2: workflow JSON executed through `n8n-core`'s execution engine, with HTTP intercepted by nock, modelled on n8n's unpublished `NodeTestHarness`. No automated real-n8n E2E; the UI check is manual via `npm run dev`. Real-API checks are manual on the test tenant (TIN-15). |
+| Test depth | **Vitest, L1 + L2** (2026-09-22) | L1: unit tests of pure logic (normalization, error mapping, retry decisions). L2: the node executed through `n8n-core`'s execution engine, with HTTP intercepted by nock. No automated real-n8n E2E; the UI check is manual via `npm run dev` / `dev:docker`. Real-API checks are manual on the test tenant (TIN-15). |
+| L2 spike outcome | **Kept** (TIN-19, 2026-09-22) | `WorkflowExecute`, `ExecutionLifecycleHooks` and `Credentials` are public `n8n-core` exports, so there are no deep imports into its internals. Node and credential classes are registered directly (no build needed). `n8n-core` 2.40.3 and `n8n-workflow` 2.40.1 are pinned devDependencies that must move together. |
 | Agent guardrails | **Block publishing, block runtime deps** (2026-09-22) | Enforced by Claude Code hooks. CI also checks that `dependencies` is empty. |
 | Harness skills | **tdd, vitest, `/verify`, copy-review subagent** (2026-09-22) | Marketplace: `mattpocock/skills@tdd`, `antfu/skills@vitest`, installed at project level and committed so every contributor gets the same set. Project-authored: the `/verify` gate and a reviewer for node copy against `docs/n8n-guidelines.md`. |
 | Coverage gate | **90% on logic modules** (2026-09-22) | Enforced in CI on `nodes/**/shared/*` (normalization, error mapping, retry policy, transport). Parameter-description files are excluded. |

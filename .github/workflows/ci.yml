@@ -27,8 +27,23 @@ jobs:
       - name: Install dependencies
         run: 'npm ci'
 
+      # n8n verification rejects packages with runtime dependencies.
+      - name: Check zero runtime dependencies
+        run: 'npm run check:deps'
+
       - name: Run lint
         run: 'npm run lint'
 
+      - name: Run typecheck
+        run: 'npm run typecheck'
+
+      # Tests never reach the real ContactWise API (nock closes the network). The coverage
+      # gate (90% on nodes/**/shared) is enforced by vitest.config.mjs.
+      - name: Run tests with coverage
+        run: 'npm test -- --coverage'
+
       - name: Run build
         run: 'npm run build'
+
+      - name: Test Claude Code guard hooks
+        run: 'node .claude/hooks/hooks.test.mjs'
