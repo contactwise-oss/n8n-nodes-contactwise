@@ -19,7 +19,7 @@ Layout (paths marked `planned` arrive with the issue in brackets):
 
 ```
 credentials/ContactWiseApi.credentials.ts      # API Key, Tenant ID, Default Entity ID; header auth; Test request
-icons/contactwise.svg, contactwise.dark.svg    # placeholders until TIN-10; build copies them to dist/icons
+icons/contactwise.svg, contactwise.dark.svg    # brand Rising Mark: primary (light), inverted (dark); build copies to dist/icons
 nodes/ContactWiseSms/ContactWiseSms.node.ts    # node description + execute(); + ContactWiseSms.node.json (codex)
 nodes/ContactWiseSms/resources/sms/send.ts     # Send operation: parameters + send() per item
 nodes/ContactWiseSms/shared/transport.ts       # base URL, credential auth, X-CW-Source header, retry loop, sanitized NodeApiError
