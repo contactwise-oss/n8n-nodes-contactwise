@@ -17,7 +17,9 @@ docker rm -f "$NAME" >/dev/null 2>&1 || true
 docker run --rm --user root --entrypoint sh -v "$NAME:/home/node/.n8n" "$IMAGE" \
 	-c "mkdir -p '$PKG' && chown -R node:node /home/node/.n8n"
 
-docker run -d --name "$NAME" -p 5678:5678 \
+# Bind to loopback only: this instance keeps running in the background and holds a real
+# ContactWise API key, so it must not be reachable from the local network.
+docker run -d --name "$NAME" -p 127.0.0.1:5678:5678 \
 	-v "$NAME:/home/node/.n8n" \
 	-v "$(pwd)/package.json:$PKG/package.json:ro" \
 	-v "$(pwd)/dist:$PKG/dist:ro" \

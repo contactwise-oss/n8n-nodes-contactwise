@@ -8,13 +8,17 @@ import type {
 	JsonObject,
 } from 'n8n-workflow';
 
+// Compiles to a require of dist/package.json, so that file must stay in the published package.
 import { version } from '../../../package.json';
 import { interpretFailure, type FailedCall, type SendFailure } from './errors';
 import { nextRetryDelayMs } from './retry';
 
 export const CONTACTWISE_BASE_URL = 'https://api.contactwise.io';
 
-/** Lets ContactWise count traffic that comes from n8n (TIN-6). */
+/**
+ * Identifies the node and its version on every request. The API doesn't read it today: n8n
+ * traffic is counted by the `source` body field on SMS send (TIN-6).
+ */
 export const SOURCE_HEADER = { 'X-CW-Source': `n8n-nodes-contactwise/${version}` };
 
 /** Key under which the interpreted failure travels on NodeApiError.context. */
