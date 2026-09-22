@@ -22,9 +22,10 @@ credentials/ContactWiseApi.credentials.ts      # API Key, Tenant ID, Default Ent
 icons/contactwise.svg, contactwise.dark.svg    # placeholders until TIN-10; build copies them to dist/icons
 nodes/ContactWiseSms/ContactWiseSms.node.ts    # node description + execute(); + ContactWiseSms.node.json (codex)
 nodes/ContactWiseSms/resources/sms/send.ts     # Send operation: parameters + send() per item
-nodes/ContactWiseSms/shared/transport.ts       # base URL, credential auth, X-CW-Source header (retry policy: TIN-13)
+nodes/ContactWiseSms/shared/transport.ts       # base URL, credential auth, X-CW-Source header, retry loop, sanitized NodeApiError
 nodes/ContactWiseSms/shared/phone.ts           # normalizeIndianMobile(): common input forms → E.164 +91…
-nodes/ContactWiseSms/shared/…                  # planned (TIN-13): error mapping
+nodes/ContactWiseSms/shared/errors.ts          # interpretFailure(): API failure → message, description, outcome (not-sent/unknown), retryable
+nodes/ContactWiseSms/shared/retry.ts           # nextRetryDelayMs(): 429/503 only, max 3 attempts, max 60 s total wait
 .agents/                                       # n8n's generic agent docs (scaffold-owned, don't edit)
 .github/workflows/ci.yml, publish.yml          # lint + build; tag-triggered provenance publish
 ```
@@ -52,7 +53,9 @@ Each input item makes one API call; there's no batching in Phase 1.
 1. Resolve the entity ID: the node field, else the credential default, else an item error. **No API call** is made in the error case.
 2. Normalize `to` to E.164 (`normalizeIndianMobile`). An invalid number becomes an item error, **with no API call**. More than 10 'Metadata' pairs fails the same way.
 3. `POST /v1/sms/{tenantId}/send` with the source header `X-CW-Source: n8n-nodes-contactwise/<package version>` (name to confirm in TIN-6).
-4. Map the response to an output item, or map the error to a thrown error or a Continue On Fail error item, per `docs/contactwise-sms-api.md`. Always keep `pairedItem`.
+4. Map the response to an output item. On failure, `interpretFailure()` decides the wording and whether the SMS was definitely not sent. Only 429/503 are retried (`nextRetryDelayMs()`, waiting with n8n-workflow's `sleep`). Everything else throws a `NodeApiError` built from sanitized fields; the raw request error is never attached, because it carries the API key. Always keep `pairedItem`.
+
+With Continue On Fail, a failed item's output is `{ error: <message>, errorDetails: { httpStatus, outcome, codes, messages, traceId, description } }`. `errorDetails` appears for API failures only; validation failures (invalid 'To', missing entity, too many metadata pairs) carry just `error`. `error` stays a string, following the n8n convention downstream nodes expect.
 
 ## Versioning
 

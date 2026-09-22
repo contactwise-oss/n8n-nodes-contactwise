@@ -56,7 +56,7 @@ Error codes: 1001 tenant · 9000 country · 9002–9004 sender ID · 9007 recipi
 
 Branch on `code`, never on `message`, because the wording can change. The JSON type of `code` is unconfirmed, so accept both numbers and strings.
 
-There are no idempotency keys yet, which is why uncertain outcomes are never retried.
+There are no idempotency keys yet, which is why uncertain outcomes are never retried. The node's retry policy for 429/503 is: honour `Retry-After` (default 1 s if missing or unusable), at most 3 attempts, and at most 60 s of total waiting. Otherwise it fails with "Nothing was sent".
 
 ## DLT primer (India)
 

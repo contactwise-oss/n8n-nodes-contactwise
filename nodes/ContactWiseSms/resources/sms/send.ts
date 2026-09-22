@@ -232,6 +232,7 @@ export async function send(this: IExecuteFunctions, itemIndex: number): Promise<
 		'POST',
 		`/v1/sms/${credentials.tenantId as string}/send`,
 		body,
+		itemIndex,
 	);
 
 	return {

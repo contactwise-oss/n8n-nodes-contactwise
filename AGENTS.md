@@ -8,7 +8,7 @@ Guidance for AI coding agents (Claude Code, Codex and others) working in this re
 
 Phase 1 (current) is the `ContactWise API` credential plus the `ContactWise SMS` node: one operation (Send), Indian recipients only, with DLT values (sender, template ID, entity ID, body) entered manually. The Trigger node, API-driven dropdowns and WhatsApp come later. Don't build them unless the task asks for it.
 
-**Status:** scaffolded with the n8n-node CLI (`programmatic/example` template, TIN-7). The credential (TIN-8) and the Send operation (TIN-12) are built. API error mapping and the retry policy are TIN-13. If the scaffold is ever regenerated, keep **this** `AGENTS.md` and `CLAUDE.md`, not the template's.
+**Status:** scaffolded with the n8n-node CLI (`programmatic/example` template, TIN-7). The credential (TIN-8), the Send operation (TIN-12), and API error mapping with the retry policy (TIN-13) are built. If the scaffold is ever regenerated, keep **this** `AGENTS.md` and `CLAUDE.md`, not the template's.
 
 ## Commands
 

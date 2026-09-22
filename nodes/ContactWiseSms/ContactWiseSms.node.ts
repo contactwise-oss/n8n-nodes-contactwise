@@ -8,6 +8,8 @@ import type {
 import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
 import { send, sendDescription } from './resources/sms/send';
+import type { SendFailure } from './shared/errors';
+import { FAILURE_CONTEXT_KEY } from './shared/transport';
 
 export class ContactWiseSms implements INodeType {
 	description: INodeTypeDescription = {
@@ -81,7 +83,26 @@ export class ContactWiseSms implements INodeType {
 				returnData.push({ json: await send.call(this, i), pairedItem: { item: i } });
 			} catch (error) {
 				if (this.continueOnFail()) {
-					returnData.push({ json: { error: (error as Error).message }, pairedItem: { item: i } });
+					const failure =
+						error instanceof NodeApiError
+							? (error.context[FAILURE_CONTEXT_KEY] as SendFailure | undefined)
+							: undefined;
+					returnData.push({
+						json: {
+							error: (error as Error).message,
+							...(failure && {
+								errorDetails: {
+									httpStatus: failure.httpStatus,
+									outcome: failure.outcome,
+									codes: failure.codes,
+									messages: failure.messages,
+									traceId: failure.traceId,
+									description: failure.description,
+								},
+							}),
+						},
+						pairedItem: { item: i },
+					});
 					continue;
 				}
 				// Re-wrapping an n8n error hands back the original instance, so nothing is lost.
