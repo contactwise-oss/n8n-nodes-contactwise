@@ -8,18 +8,21 @@ Guidance for AI coding agents (Claude Code, Codex and others) working in this re
 
 Phase 1 (current) is the `ContactWise API` credential plus the `ContactWise SMS` node: one operation (Send), Indian recipients only, with DLT values (sender, template ID, entity ID, body) entered manually. The Trigger node, API-driven dropdowns and WhatsApp come later. Don't build them unless the task asks for it.
 
-**Status:** pre-scaffold. The package gets generated with the n8n-node CLI (Linear TIN-7). The scaffold also brings n8n's generic agent docs (`.agents/`), CI and publish workflows, and its own `AGENTS.md`/`CLAUDE.md`. When merging it in, keep **this** `AGENTS.md` and `CLAUDE.md`.
+**Status:** scaffolded with the n8n-node CLI (`programmatic/example` template, TIN-7). `ContactWise SMS` is a skeleton until TIN-12, and there's no credential yet (TIN-8). If the scaffold is ever regenerated, keep **this** `AGENTS.md` and `CLAUDE.md`, not the template's.
 
 ## Commands
 
 ```bash
-npm run dev        # build, then start a local n8n (Docker) with the node loaded; hot reload at http://localhost:5678
+npm run dev        # build + watch, then run a local n8n via `npx n8n` with the node linked; http://localhost:5678
+npm run dev:docker # build, then run n8n 2.40.5 in Docker with dist/ mounted as a custom node (no watch: rerun after changes)
 npm run build
 npm run lint       # n8n community-node lint rules; `npm run lint:fix` autofixes
 npm run release    # local run: lint, build, version bump, changelog, tag, push. It does NOT publish:
                    # the pushed tag triggers .github/workflows/publish.yml, which publishes with npm provenance
 npx @n8n/scan-community-package n8n-nodes-contactwise   # n8n's verification scan (runs against the published package)
 ```
+
+`npm run dev` needs a Node version with prebuilt binaries for n8n's native modules. On Node 26 it stalled in `node-gyp` while installing n8n (2026-09-22), so use Node 24 LTS or `npm run dev:docker`.
 
 Test commands get defined with the test harness (see the Decisions section in `docs/architecture.md`). Never use `n8n-node release --publish`: a package published from a laptop has no provenance and can't be verified.
 

@@ -1,6 +1,6 @@
 # Architecture
 
-> Status: **planned**. Nothing is scaffolded yet (TIN-7). Update this file when the scaffold lands and whenever a decision below is made.
+> Status: **scaffolded** (TIN-7). The layout below reflects the repo. Rows marked "planned" don't exist yet. Update this file whenever a decision below is made.
 
 ## Package shape
 
@@ -15,18 +15,20 @@ One npm package holds every ContactWise node and a **single shared credential ty
 
 Internal names (node `name`, credential `name`, parameter `name`s, option `value`s) are permanent once published, because saved workflows store them.
 
-Expected layout, following the n8n-node templates. Confirm it against the real scaffold and update this block:
+Layout (paths marked `planned` arrive with the issue in brackets):
 
 ```
-credentials/ContactWiseApi.credentials.ts
-icons/contactwise.svg, contactwise.dark.svg
-nodes/ContactWiseSms/ContactWiseSms.node.ts    # node description; + ContactWiseSms.node.json (codex)
-nodes/ContactWiseSms/resources/sms/send.ts     # Send operation parameters
-nodes/ContactWiseSms/shared/transport.ts       # base URL, auth, source header, retry policy
-nodes/ContactWiseSms/shared/…                  # phone normalization, error mapping
+credentials/ContactWiseApi.credentials.ts      # planned (TIN-8)
+icons/contactwise.svg, contactwise.dark.svg    # placeholders until TIN-10; build copies them to dist/icons
+nodes/ContactWiseSms/ContactWiseSms.node.ts    # node description + execute(); + ContactWiseSms.node.json (codex)
+nodes/ContactWiseSms/resources/sms/send.ts     # planned (TIN-12): Send operation parameters
+nodes/ContactWiseSms/shared/transport.ts       # planned (TIN-12/13): base URL, auth, source header, retry policy
+nodes/ContactWiseSms/shared/…                  # planned (TIN-9/13): phone normalization, error mapping
 .agents/                                       # n8n's generic agent docs (scaffold-owned, don't edit)
 .github/workflows/ci.yml, publish.yml          # lint + build; tag-triggered provenance publish
 ```
+
+`package.json` has `"n8n": { "strict": true }`, which is n8n Cloud eligibility mode: the ESLint config must stay the n8n default (`n8n-node cloud-support` shows the status). Only `credentials/**`, `nodes/**` and `package.json` are compiled, so anything else (tests, fixtures) stays out of `dist/`.
 
 Once a second node exists, move code that both nodes use (transport, error mapping) out of `nodes/ContactWiseSms/shared/` into a package-level shared folder.
 
