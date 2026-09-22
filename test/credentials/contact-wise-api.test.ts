@@ -13,7 +13,11 @@ describe('ContactWise API credential', () => {
 			node: new ProbeNode('contactWiseApi'),
 			credentialTypes: [new ContactWiseApi()],
 			credentials: {
-				contactWiseApi: { apiKey: 'cw-key-123', tenantId: 'tenant-under-test', defaultEntityId: '' },
+				contactWiseApi: {
+					apiKey: 'cw-key-123',
+					tenantId: 'tenant-under-test',
+					defaultEntityId: '',
+				},
 			},
 			parameters: { url: `${CW_BASE_URL}${sendPath()}`, value: 'hello', fullResponse: true },
 		});

@@ -107,7 +107,9 @@ export function interceptSend(scenario: SendScenario, tenantId = TEST_TENANT_ID)
 	const scope =
 		'networkError' in scenario
 			? interceptor.replyWithError(
-					Object.assign(new Error(scenario.networkError.message), { code: scenario.networkError.code }),
+					Object.assign(new Error(scenario.networkError.message), {
+						code: scenario.networkError.code,
+					}),
 				)
 			: interceptor.reply(function reply() {
 					requests[requests.length - 1].headers = this.req.headers;

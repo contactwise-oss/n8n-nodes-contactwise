@@ -11,7 +11,7 @@ Run every step from the repo root, **even after one fails**, then report all res
 | # | Step | Command | Passes when |
 |---|---|---|---|
 | 1 | Typecheck | `npm run typecheck` | exit 0 |
-| 2 | Lint | `npm run lint` | exit 0. List any warnings too: n8n expects them fixed before verification |
+| 2 | Lint + format | `npm run lint` and `npm run format:check` | both exit 0. List any lint warnings too: n8n expects them fixed before verification. Fix formatting with `npm run format` |
 | 3 | Tests + coverage | `npm test -- --coverage` | all tests pass and the 90% threshold on `nodes/**/shared/*` holds (enforced by `vitest.config.mjs`) |
 | 4 | Build | `npm run build` | exit 0 |
 | 5 | Zero runtime deps | `npm run check:deps` | exit 0 |

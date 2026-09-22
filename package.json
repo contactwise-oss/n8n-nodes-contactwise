@@ -28,6 +28,8 @@
 		"lint": "n8n-node lint",
 		"lint:fix": "n8n-node lint --fix",
 		"typecheck": "tsc -p tsconfig.test.json",
+		"format": "prettier --write \"nodes/**/*.ts\" \"credentials/**/*.ts\" \"test/**/*.ts\"",
+		"format:check": "prettier --check \"nodes/**/*.ts\" \"credentials/**/*.ts\" \"test/**/*.ts\"",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"check:deps": "node -e \"const p=require('./package.json');const bad=Object.keys({...p.dependencies,...p.optionalDependencies}).concat(Object.keys(p.peerDependencies||{}).filter(n=>n!=='n8n-workflow'));if(bad.length){console.error('Runtime dependencies are not allowed: '+bad.join(', '));process.exit(1)}\"",

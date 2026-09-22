@@ -51,7 +51,10 @@ describe('runNode harness (L2): executes a node in n8n-core with nock-faked HTTP
 		nock(BASE).post('/echo').reply(500, { error: 'boom' });
 		nock(BASE).post('/echo').reply(200, { ok: true });
 
-		const { items, error } = await run({ continueOnFail: true, input: [{ value: 'x' }, { value: 'y' }] });
+		const { items, error } = await run({
+			continueOnFail: true,
+			input: [{ value: 'x' }, { value: 'y' }],
+		});
 
 		expect(error).toBeUndefined();
 		expect(items).toHaveLength(2);

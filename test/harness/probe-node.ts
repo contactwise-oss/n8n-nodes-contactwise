@@ -75,14 +75,18 @@ export class ProbeNode implements INodeType {
 		for (let i = 0; i < items.length; i++) {
 			try {
 				const fullResponse = this.getNodeParameter('fullResponse', i) as boolean;
-				const response = (await this.helpers.httpRequestWithAuthentication.call(this, credentialName, {
-					method: 'POST',
-					url: this.getNodeParameter('url', i) as string,
-					body: { value: this.getNodeParameter('value', i) },
-					json: true,
-					returnFullResponse: fullResponse,
-					ignoreHttpStatusErrors: fullResponse,
-				})) as IDataObject;
+				const response = (await this.helpers.httpRequestWithAuthentication.call(
+					this,
+					credentialName,
+					{
+						method: 'POST',
+						url: this.getNodeParameter('url', i) as string,
+						body: { value: this.getNodeParameter('value', i) },
+						json: true,
+						returnFullResponse: fullResponse,
+						ignoreHttpStatusErrors: fullResponse,
+					},
+				)) as IDataObject;
 				returnData.push({ json: response, pairedItem: { item: i } });
 			} catch (error) {
 				if (this.continueOnFail()) {

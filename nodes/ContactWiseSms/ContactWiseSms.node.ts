@@ -3,18 +3,25 @@ import type {
 	INodeExecutionData,
 	INodeType,
 	INodeTypeDescription,
+	JsonObject,
 } from 'n8n-workflow';
-import { NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
+import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
+
+import { send, sendDescription } from './resources/sms/send';
 
 export class ContactWiseSms implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'ContactWise SMS',
 		name: 'contactWiseSms',
-		icon: { light: 'file:../../icons/contactwise.svg', dark: 'file:../../icons/contactwise.dark.svg' },
+		icon: {
+			light: 'file:../../icons/contactwise.svg',
+			dark: 'file:../../icons/contactwise.dark.svg',
+		},
 		group: ['output'],
 		version: [1],
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description: 'Send DLT-compliant SMS to recipients in India with ContactWise',
+		description:
+			"Send DLT-compliant SMS to recipients in India with ContactWise. Each run sends a real, billable SMS using a DLT-registered 'Sender ID', 'DLT Template ID' and 'DLT Entity ID'.",
 		defaults: {
 			name: 'ContactWise SMS',
 		},
@@ -61,11 +68,30 @@ export class ContactWiseSms implements INodeType {
 				],
 				default: 'send',
 			},
+			...sendDescription,
 		],
 	};
 
-	// Skeleton only: the Send operation is built test-first in TIN-12.
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
-		throw new NodeOperationError(this.getNode(), 'The Send operation isn\'t available yet');
+		const items = this.getInputData();
+		const returnData: INodeExecutionData[] = [];
+
+		for (let i = 0; i < items.length; i++) {
+			try {
+				returnData.push({ json: await send.call(this, i), pairedItem: { item: i } });
+			} catch (error) {
+				if (this.continueOnFail()) {
+					returnData.push({ json: { error: (error as Error).message }, pairedItem: { item: i } });
+					continue;
+				}
+				// Re-wrapping an n8n error hands back the original instance, so nothing is lost.
+				if (error instanceof NodeOperationError) {
+					throw new NodeOperationError(this.getNode(), error, { itemIndex: i });
+				}
+				throw new NodeApiError(this.getNode(), error as JsonObject, { itemIndex: i });
+			}
+		}
+
+		return [returnData];
 	}
 }

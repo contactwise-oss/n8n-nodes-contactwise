@@ -21,8 +21,8 @@ Layout (paths marked `planned` arrive with the issue in brackets):
 credentials/ContactWiseApi.credentials.ts      # API Key, Tenant ID, Default Entity ID; header auth; Test request
 icons/contactwise.svg, contactwise.dark.svg    # placeholders until TIN-10; build copies them to dist/icons
 nodes/ContactWiseSms/ContactWiseSms.node.ts    # node description + execute(); + ContactWiseSms.node.json (codex)
-nodes/ContactWiseSms/resources/sms/send.ts     # planned (TIN-12): Send operation parameters
-nodes/ContactWiseSms/shared/transport.ts       # planned (TIN-12/13): base URL, auth, source header, retry policy
+nodes/ContactWiseSms/resources/sms/send.ts     # Send operation: parameters + send() per item
+nodes/ContactWiseSms/shared/transport.ts       # base URL, credential auth, X-CW-Source header (retry policy: TIN-13)
 nodes/ContactWiseSms/shared/phone.ts           # normalizeIndianMobile(): common input forms → E.164 +91…
 nodes/ContactWiseSms/shared/…                  # planned (TIN-13): error mapping
 .agents/                                       # n8n's generic agent docs (scaffold-owned, don't edit)
@@ -50,8 +50,8 @@ The base URL is fixed at `https://api.contactwise.io` and is not a user field.
 Each input item makes one API call; there's no batching in Phase 1.
 
 1. Resolve the entity ID: the node field, else the credential default, else an item error. **No API call** is made in the error case.
-2. Normalize `to` to the canonical Indian mobile format. An invalid number becomes an item error, **with no API call**.
-3. `POST /v1/sms/{tenantId}/send` with the source header (`X-CW-Source`, name pending TIN-6).
+2. Normalize `to` to E.164 (`normalizeIndianMobile`). An invalid number becomes an item error, **with no API call**. More than 10 'Metadata' pairs fails the same way.
+3. `POST /v1/sms/{tenantId}/send` with the source header `X-CW-Source: n8n-nodes-contactwise/<package version>` (name to confirm in TIN-6).
 4. Map the response to an output item, or map the error to a thrown error or a Continue On Fail error item, per `docs/contactwise-sms-api.md`. Always keep `pairedItem`.
 
 ## Versioning

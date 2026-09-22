@@ -28,7 +28,10 @@ function resolveCredentialExpression(value: unknown, credentials: ICredentialDat
 
 function resolveAll(values: IDataObject, credentials: ICredentialDataDecryptedObject): IDataObject {
 	return Object.fromEntries(
-		Object.entries(values).map(([key, value]) => [key, resolveCredentialExpression(value, credentials)]),
+		Object.entries(values).map(([key, value]) => [
+			key,
+			resolveCredentialExpression(value, credentials),
+		]),
 	) as IDataObject;
 }
 

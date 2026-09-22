@@ -42,24 +42,30 @@ describe('ContactWise API fixtures (mirror docs/contactwise-sms-api.md)', () => 
 		['validationErrors', sendScenarios.validationErrors(), 400, { errors: expect.any(Array) }],
 		['problemDetails', sendScenarios.problemDetails(), 400, { errors: { $: expect.any(Array) } }],
 		['serverError', sendScenarios.serverError('t-1'), 500, { traceId: 't-1' }],
-	])('%s reaches the node with the documented status and body', async (_name, scenario, status, body) => {
-		const { json } = await probe(scenario);
+	])(
+		'%s reaches the node with the documented status and body',
+		async (_name, scenario, status, body) => {
+			const { json } = await probe(scenario);
 
-		expect(json).toMatchObject({ statusCode: status, body });
-	});
+			expect(json).toMatchObject({ statusCode: status, body });
+		},
+	);
 
 	it.each([
 		['rateLimited', sendScenarios.rateLimited(3), 429, 9010, '3'],
 		['unavailable', sendScenarios.unavailable(7), 503, 9011, '7'],
-	])('%s carries its code and a Retry-After header', async (_name, scenario, status, code, retryAfter) => {
-		const { json } = await probe(scenario);
+	])(
+		'%s carries its code and a Retry-After header',
+		async (_name, scenario, status, code, retryAfter) => {
+			const { json } = await probe(scenario);
 
-		expect(json).toMatchObject({
-			statusCode: status,
-			headers: { 'retry-after': retryAfter },
-			body: { errors: [{ code }] },
-		});
-	});
+			expect(json).toMatchObject({
+				statusCode: status,
+				headers: { 'retry-after': retryAfter },
+				body: { errors: [{ code }] },
+			});
+		},
+	);
 
 	it.each([
 		['unauthorized', sendScenarios.unauthorized(), 401],
@@ -87,11 +93,18 @@ describe('ContactWise API fixtures (mirror docs/contactwise-sms-api.md)', () => 
 			node: new ProbeNode(),
 			credentialTypes: [new ProbeApi()],
 			credentials: { probeApi: { apiKey: TEST_API_KEY } },
-			parameters: { url: `${CW_BASE_URL}${sendPath()}`, value: '={{ $json.v }}', fullResponse: true },
+			parameters: {
+				url: `${CW_BASE_URL}${sendPath()}`,
+				value: '={{ $json.v }}',
+				fullResponse: true,
+			},
 			input: [{ v: 'one' }, { v: 'two' }],
 		});
 
 		expect(result.items.map((item) => item.json.statusCode)).toEqual([429, 200]);
-		expect([first.requests[0].body, second.requests[0].body]).toEqual([{ value: 'one' }, { value: 'two' }]);
+		expect([first.requests[0].body, second.requests[0].body]).toEqual([
+			{ value: 'one' },
+			{ value: 'two' },
+		]);
 	});
 });

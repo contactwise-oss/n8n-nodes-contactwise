@@ -11,9 +11,13 @@ export class ContactWiseApi implements ICredentialType {
 
 	displayName = 'ContactWise API';
 
-	icon: Icon = { light: 'file:../icons/contactwise.svg', dark: 'file:../icons/contactwise.dark.svg' };
+	icon: Icon = {
+		light: 'file:../icons/contactwise.svg',
+		dark: 'file:../icons/contactwise.dark.svg',
+	};
 
-	documentationUrl = 'https://github.com/ContactWise/n8n-nodes-contactwise?tab=readme-ov-file#credentials';
+	documentationUrl =
+		'https://github.com/ContactWise/n8n-nodes-contactwise?tab=readme-ov-file#credentials';
 
 	properties: INodeProperties[] = [
 		{
@@ -23,7 +27,7 @@ export class ContactWiseApi implements ICredentialType {
 			typeOptions: { password: true },
 			required: true,
 			default: '',
-			description: 'Your ContactWise API key. Contact ContactWise support if you don\'t have one.',
+			description: "Your ContactWise API key. Contact ContactWise support if you don't have one.",
 		},
 		{
 			displayName: 'Tenant ID',
@@ -31,7 +35,7 @@ export class ContactWiseApi implements ICredentialType {
 			type: 'string',
 			required: true,
 			default: '',
-			description: 'Your ContactWise tenant ID. Contact ContactWise support if you don\'t have one.',
+			description: "Your ContactWise tenant ID. Contact ContactWise support if you don't have one.",
 		},
 		{
 			displayName: 'Default Entity ID',
@@ -40,7 +44,7 @@ export class ContactWiseApi implements ICredentialType {
 			default: '',
 			placeholder: 'e.g. 1201159143227331234',
 			description:
-				'DLT principal entity ID (PE ID) used when a node\'s \'DLT Entity ID\' is empty. Leave empty to set it on each node.',
+				"DLT principal entity ID (PE ID) used when a node's 'DLT Entity ID' is empty. Leave empty to set it on each node.",
 		},
 	];
 
@@ -64,14 +68,15 @@ export class ContactWiseApi implements ICredentialType {
 				type: 'responseCode',
 				properties: {
 					value: 401,
-					message: 'The \'API Key\' is invalid, or it doesn\'t belong to this tenant',
+					message: "The 'API Key' is invalid, or it doesn't belong to this tenant",
 				},
 			},
 			{
 				type: 'responseCode',
 				properties: {
 					value: 404,
-					message: 'This tenant isn\'t active. Check the \'Tenant ID\' or contact ContactWise support.',
+					message:
+						"This tenant isn't active. Check the 'Tenant ID' or contact ContactWise support.",
 				},
 			},
 		],
