@@ -23,7 +23,8 @@ icons/contactwise.svg, contactwise.dark.svg    # placeholders until TIN-10; buil
 nodes/ContactWiseSms/ContactWiseSms.node.ts    # node description + execute(); + ContactWiseSms.node.json (codex)
 nodes/ContactWiseSms/resources/sms/send.ts     # planned (TIN-12): Send operation parameters
 nodes/ContactWiseSms/shared/transport.ts       # planned (TIN-12/13): base URL, auth, source header, retry policy
-nodes/ContactWiseSms/shared/…                  # planned (TIN-9/13): phone normalization, error mapping
+nodes/ContactWiseSms/shared/phone.ts           # normalizeIndianMobile(): common input forms → E.164 +91…
+nodes/ContactWiseSms/shared/…                  # planned (TIN-13): error mapping
 .agents/                                       # n8n's generic agent docs (scaffold-owned, don't edit)
 .github/workflows/ci.yml, publish.yml          # lint + build; tag-triggered provenance publish
 ```
