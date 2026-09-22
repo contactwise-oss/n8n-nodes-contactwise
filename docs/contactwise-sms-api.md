@@ -7,6 +7,16 @@ Public docs: https://docs.contactwise.io/ (Postman). Where they disagree with th
 - Base URL: `https://api.contactwise.io`. The public docs' auth example says `.com`, which is wrong.
 - Header: `X-CW-Api-Key: <key>`. The tenant ID goes in the path. A valid key used with another tenant's ID returns 401.
 
+## Validate a key: `GET /v1/account/{tenantId}/me`
+
+Used by the credential's Test button. It sends no message.
+
+| Status | Body | Meaning |
+|---|---|---|
+| 200 | `{ "id": "…", "name": "…" }` | The key is valid for this tenant |
+| 401 | empty | Missing key, or the key belongs to another tenant |
+| 404 | — | The key authenticated, but the tenant is no longer active |
+
 ## Send one SMS: `POST /v1/sms/{tenantId}/send`
 
 | Field | Type | Required | Node source | Notes |

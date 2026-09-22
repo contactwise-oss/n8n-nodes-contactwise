@@ -18,7 +18,7 @@ Internal names (node `name`, credential `name`, parameter `name`s, option `value
 Layout (paths marked `planned` arrive with the issue in brackets):
 
 ```
-credentials/ContactWiseApi.credentials.ts      # planned (TIN-8)
+credentials/ContactWiseApi.credentials.ts      # API Key, Tenant ID, Default Entity ID; header auth; Test request
 icons/contactwise.svg, contactwise.dark.svg    # placeholders until TIN-10; build copies them to dist/icons
 nodes/ContactWiseSms/ContactWiseSms.node.ts    # node description + execute(); + ContactWiseSms.node.json (codex)
 nodes/ContactWiseSms/resources/sms/send.ts     # planned (TIN-12): Send operation parameters
@@ -40,7 +40,9 @@ Once a second node exists, move code that both nodes use (transport, error mappi
 | Tenant ID | URL path: `/v1/sms/{tenantId}/…` |
 | Default Entity ID (optional) | Fallback for the SMS node's DLT Entity ID |
 
-The base URL is fixed at `https://api.contactwise.io` and is not a user field. **No Test button** until the API has a lightweight authenticated GET endpoint (TIN-3). Until then, a bad key surfaces as a clear 401 message on the first send (decided 2026-09-22).
+The base URL is fixed at `https://api.contactwise.io` and is not a user field.
+
+**Test button:** `GET /v1/account/{tenantId}/me`, which sends no message. `responseCode` rules turn a 401 into "The 'API Key' is invalid, or it doesn't belong to this tenant" and a 404 into an inactive-tenant message. n8n's linter requires a credential test (`credential-test-required`). The harness can't run n8n's credential tester, so the Test button is verified in real n8n (TIN-15).
 
 ## SMS Send: per-item flow
 

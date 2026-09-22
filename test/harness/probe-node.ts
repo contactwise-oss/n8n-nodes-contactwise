@@ -44,6 +44,11 @@ export class ProbeApi implements ICredentialType {
  * programmatic pattern (pairedItem, continueOnFail, NodeApiError).
  */
 export class ProbeNode implements INodeType {
+	/** @param credentialName Credential type the probe authenticates with. */
+	constructor(credentialName = 'probeApi') {
+		this.description.credentials = [{ name: credentialName, required: true }];
+	}
+
 	description: INodeTypeDescription = {
 		displayName: 'Probe',
 		name: 'probe',
@@ -54,7 +59,6 @@ export class ProbeNode implements INodeType {
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
 		usableAsTool: true,
-		credentials: [{ name: 'probeApi', required: true }],
 		properties: [
 			{ displayName: 'URL', name: 'url', type: 'string', default: '' },
 			{ displayName: 'Value', name: 'value', type: 'string', default: '' },
@@ -65,11 +69,13 @@ export class ProbeNode implements INodeType {
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
 		const items = this.getInputData();
 		const returnData: INodeExecutionData[] = [];
+		// execute() runs bound to n8n's execution context, not the class instance.
+		const credentialName = Object.keys(this.getNode().credentials ?? {})[0];
 
 		for (let i = 0; i < items.length; i++) {
 			try {
 				const fullResponse = this.getNodeParameter('fullResponse', i) as boolean;
-				const response = (await this.helpers.httpRequestWithAuthentication.call(this, 'probeApi', {
+				const response = (await this.helpers.httpRequestWithAuthentication.call(this, credentialName, {
 					method: 'POST',
 					url: this.getNodeParameter('url', i) as string,
 					body: { value: this.getNodeParameter('value', i) },

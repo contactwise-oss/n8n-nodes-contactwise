@@ -40,7 +40,9 @@
 	"n8n": {
 		"n8nNodesApiVersion": 1,
 		"strict": true,
-		"credentials": [],
+		"credentials": [
+			"dist/credentials/ContactWiseApi.credentials.js"
+		],
 		"nodes": [
 			"dist/nodes/ContactWiseSms/ContactWiseSms.node.js"
 		]

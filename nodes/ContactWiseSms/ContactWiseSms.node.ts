@@ -14,13 +14,19 @@ export class ContactWiseSms implements INodeType {
 		group: ['output'],
 		version: [1],
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
-		description: 'Send DLT-compliant SMS to Indian mobile numbers with ContactWise',
+		description: 'Send DLT-compliant SMS to recipients in India with ContactWise',
 		defaults: {
 			name: 'ContactWise SMS',
 		},
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
 		usableAsTool: true,
+		credentials: [
+			{
+				name: 'contactWiseApi',
+				required: true,
+			},
+		],
 		properties: [
 			{
 				displayName: 'Resource',
@@ -49,7 +55,7 @@ export class ContactWiseSms implements INodeType {
 					{
 						name: 'Send',
 						value: 'send',
-						description: 'Send a text message to an Indian mobile number',
+						description: 'Send an SMS to a recipient in India',
 						action: 'Send SMS',
 					},
 				],
