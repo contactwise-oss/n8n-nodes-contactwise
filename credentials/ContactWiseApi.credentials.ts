@@ -17,7 +17,7 @@ export class ContactWiseApi implements ICredentialType {
 	};
 
 	documentationUrl =
-		'https://github.com/ContactWise/n8n-nodes-contactwise?tab=readme-ov-file#credentials';
+		'https://github.com/contactwise-oss/n8n-nodes-contactwise?tab=readme-ov-file#credentials';
 
 	properties: INodeProperties[] = [
 		{
