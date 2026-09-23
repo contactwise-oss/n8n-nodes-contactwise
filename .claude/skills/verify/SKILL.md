@@ -15,7 +15,7 @@ Run every step from the repo root, **even after one fails**, then report all res
 | 3 | Tests + coverage | `npm test -- --coverage` | all tests pass and the 90% threshold on `nodes/**/shared/*` holds (enforced by `vitest.config.mjs`) |
 | 4 | Build | `npm run build` | exit 0 |
 | 5 | Zero runtime deps | `npm run check:deps` | exit 0 |
-| 6 | Guard hooks | `node .claude/hooks/hooks.test.mjs` | every case passes |
+| 6 | Guard hooks | `node .claude/hooks/hooks.test.mjs` and `node .claude/skills/linear-issue-management/hooks/linear-issue-guard.test.mjs` | every case passes in both |
 | 7 | Package contents | `npm pack --dry-run --json` | the tarball holds only `dist/**`, `package.json`, `README.md`, `LICENSE`, `CHANGELOG.md`: no `test/`, `.ts` sources (other than `.d.ts`), `docs/` or `.claude/` |
 
 If a script is missing from `package.json`, mark that step **SKIPPED (script missing)** and flag it. Don't substitute a command of your own.

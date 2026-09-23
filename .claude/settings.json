@@ -25,6 +25,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "mcp__.*[Ll]inear.*__save_issue",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/skills/linear-issue-management/hooks/linear-issue-guard.mjs\"",
+            "timeout": 10
+          }
+        ]
       }
     ]
   }

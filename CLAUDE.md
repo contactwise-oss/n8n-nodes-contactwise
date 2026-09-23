@@ -8,5 +8,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **Before saying a change is done**, run the `verify` skill (the full local gate). Build features test-first with the `tdd` skill, at the seams listed in `docs/architecture.md`.
 - **After changing user-facing text** (parameters, descriptions, errors), run the `copy-reviewer` subagent and fix any blockers.
-- **Hooks** in `.claude/settings.json` block publishing and runtime dependencies. If one blocks you, change the approach rather than working around it. After editing a hook, run `node .claude/hooks/hooks.test.mjs`.
+- **Hooks** in `.claude/settings.json` block publishing, runtime dependencies, and Linear issues that break the `linear-issue-management` rules. If one blocks you, change the approach rather than working around it. After editing a hook, run `node .claude/hooks/hooks.test.mjs` and `node .claude/skills/linear-issue-management/hooks/linear-issue-guard.test.mjs`.
+- **Linear:** follow the `linear-issue-management` skill for every issue you create, update or close. Post project updates with `/linear-project-update`.
 - `.mcp.json` configures two n8n documentation MCP servers: `n8n-docs` (search and fetch docs.n8n.io pages) and `n8n-kapa`. Query them for n8n internals (helpers, parameter types, versioning, linter rules) rather than relying on memory.
+
+## Linear
+
+Settings for the `linear-issue-management` and `linear-project-update` skills and the Linear issue hook. Regenerate with `/linear-issue-management setup`.
+
+- **Workspace:** contactwise
+- **Team:** T-Integrations (key `TIN`)
+- **Project:** n8n-nodes-contactwise
+- **Assignee:** me (Lucky, the owner and solo maintainer)
+- **Type labels:** Feature, Improvement, Bug
+- **Area labels:** ci, infra, documentation, testing, security, auth, ux, ops, integration, foundation, audit, ratelimit, open-question
+- **Statuses:** Backlog → Todo → In Progress → In Review → Done (also Canceled, Duplicate)
+- **Branches and commits:** use Linear's branch name (`<user>/tin-<n>-<slug>`); reference `TIN-<n>` in commit messages
+
+### Milestones
+
+| Milestone | Contents |
+|---|---|
+| M1 · SMS on npm for self-hosted n8n | The SMS node published to npm for self-hosted customers |
+| M2 · n8n verification (n8n Cloud) | Provenance, trusted publishing, the n8n scan, the Creator Portal submission |
+| M3 · WhatsApp nodes | The WhatsApp action and trigger nodes (epic TIN-30) |
+| Backlog · Unscheduled | API-team reference issues (under TIN-20), the SMS Trigger, Phase 2 dropdowns, anything not yet planned |
+
+### Project-specific rules
+
+- ContactWise API or backend changes that the nodes need are reference-only sub-issues of epic TIN-20, titled `API team: …`, in `Backlog · Unscheduled`. They take the priority of the node work they block.

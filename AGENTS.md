@@ -56,9 +56,15 @@ Never use `n8n-node release --publish`: a package published from a laptop has no
 | Writing or changing tests | The Test seams section of `docs/architecture.md` |
 | Request bodies, responses, error codes, retries, DLT, phone formats | `docs/contactwise-sms-api.md` |
 | User-facing copy and error text, dependencies, release and verification | `docs/n8n-guidelines.md` |
+| Creating, updating or closing Linear issues; project updates | `.claude/skills/linear-issue-management/SKILL.md`, with this project's values in the `## Linear` section of `CLAUDE.md` |
 
 `.agents/*` is n8n's generic community-node guidance, delivered by the scaffold. Don't edit it, so template updates merge cleanly. `docs/*` holds this project's decisions and contracts, and wins when the two conflict.
 
 ## Workflow
 
 Work is tracked in Linear under team key `TIN`. Use the branch name Linear generates (`<user>/tin-<n>-<slug>`) and reference `TIN-<n>` in commit messages.
+
+Every issue follows `.claude/skills/linear-issue-management/SKILL.md`. The team, project, labels and milestones are in the `## Linear` section of `CLAUDE.md`. A hook blocks issue creates that break the rules. The short version:
+- Every issue has the owner as assignee, a priority, one type label plus area labels, a milestone (`Backlog · Unscheduled` if unplanned), and Blocked by / Blocks / Related links where they apply.
+- The description is the spec. Design, decisions, progress and the final implementation go in comments.
+- An issue isn't Done without an `## Implementation` comment.
