@@ -24,6 +24,7 @@ Settings for the `linear-issue-management` and `linear-project-update` skills an
 - **Area labels:** ci, infra, documentation, testing, security, auth, ux, ops, integration, foundation, audit, ratelimit, open-question
 - **Statuses:** Backlog → Todo → In Progress → In Review → Done (also Canceled, Duplicate)
 - **Branches and commits:** use Linear's branch name (`<user>/tin-<n>-<slug>`); reference `TIN-<n>` in commit messages
+- **GitHub integration:** connected to `contactwise-oss/n8n-nodes-contactwise` (2026-09-23, TIN-50); PR automation: branch pushed → In Progress, PR opened → In Review, PR merged → Done; GitHub Issues sync: off. So post the `## Implementation` comment before merging, and mention only the PR's own issue (`Fixes TIN-n`): every issue ID in a PR is linked and moved, including after "Part of" or "Ref"
 
 ### Milestones
 

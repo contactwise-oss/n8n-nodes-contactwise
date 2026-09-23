@@ -15,6 +15,7 @@ Settings for the `linear-issue-management` and `linear-project-update` skills an
 - **Area labels:** <comma-separated area labels that apply to this project>
 - **Statuses:** Backlog → Todo → In Progress → In Review → Done (also Canceled, Duplicate)
 - **Branches and commits:** use Linear's branch name (`<user>/<key>-<n>-<slug>`); reference `<KEY>-<n>` in commit messages
+- **GitHub integration:** <`not connected` | connected to `<org>/<repo>`; PR automation: branch pushed → <status>, PR opened → <status>, PR merged → <status>; GitHub Issues sync: <on (into Triage/Backlog) | off>>
 
 ### Milestones
 

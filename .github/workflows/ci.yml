@@ -50,3 +50,6 @@ jobs:
 
       - name: Test Claude Code guard hooks
         run: 'node .claude/hooks/hooks.test.mjs'
+
+      - name: Test the Linear issue hook
+        run: 'node .claude/skills/linear-issue-management/hooks/linear-issue-guard.test.mjs'

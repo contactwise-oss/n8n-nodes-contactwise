@@ -10,7 +10,7 @@ This skill works in any repo. The rules below are the same everywhere. The **pro
 
 ## 0. Load the project's Linear settings
 
-1. Read the `## Linear` section of `CLAUDE.md` in the repo root. It must have **Team**, **Project**, **Assignee**, **Type labels**, **Area labels** and a **Milestones** table.
+1. Read the `## Linear` section of `CLAUDE.md` in the repo root. It must have **Team**, **Project**, **Assignee**, **Type labels**, **Area labels** and a **Milestones** table. The **GitHub integration** line is optional; if it's missing, assume there's no integration and manage statuses by hand.
 2. If the section is missing or incomplete: **stop**. Tell the developer what's missing and offer to run `/linear-issue-management setup` (section 6). Don't guess the values.
 3. If the Linear tools are deferred, load them with ToolSearch (e.g. `select:mcp__claude_ai_Linear__save_issue,…`).
 
@@ -64,6 +64,16 @@ The **description is the spec**: the problem, requirements, scope and a "Done wh
 
 Use the status names from CLAUDE.md if they differ.
 
+### When the Linear GitHub integration is on
+
+Check the **GitHub integration** line in CLAUDE.md. If PR automation is configured, the integration moves statuses and attaches PRs for any issue linked to a PR. The issue is linked when its ID (e.g. `TIN-48`) appears in the branch name, which Linear's generated branch names always include, or in the PR title or description. Then:
+
+- **Don't** set In Progress, In Review or Done by hand, and **don't** attach the PR link yourself, for an issue that has a PR. Only work without a PR (ops, research, another team's work) is moved by hand.
+- **If merging closes the issue** (the "merged → Done" mapping), post the `## Implementation` comment **before** the PR merges. After the merge it's too late: the issue is already Done.
+- **Mention only the PR's own issue ID** in the branch name, commit messages, PR title and PR description: `Fixes TIN-n` in the description. **Every** issue ID Linear finds there is linked and gets the same automatic status changes, including IDs after "Part of", "Ref" or "Related to". Observed 2026-09-23: a PR mentioning `Part of TIN-45` and `Ref TIN-53` moved the epic and an In Review issue to In Progress. Refer to other issues (epics, related work) by name in the PR, or record the connection in Linear itself (parent, sub-issue, relations).
+- **If a PR mentioned an extra issue by mistake,** edit the PR description to remove the ID. Linear then drops that link. Put back any status the automation changed, and add a comment on that issue explaining why.
+- **If GitHub Issues sync is on**, issues opened on GitHub arrive without our fields. Triage them with the "Complete a synced or hand-made issue" procedure below. The enforcement hook doesn't see them.
+
 ## 4. Procedures
 
 ### Create an issue
@@ -80,11 +90,17 @@ Use the status names from CLAUDE.md if they differ.
 5. Read everything back with `list_issues` and `parentId`, and spot-check the relations.
 
 ### Update, start or finish work
-- Starting: set `In Progress` and add a `## Progress` comment with the plan, or a `## Design` comment.
-- PR opened: set `In Review`, attach the PR link (`links`), and add a `## Progress` comment.
-- Finished: add an `## Implementation` comment, then set `Done`.
-- Decision taken: add a `## Decision` comment with the date.
-- Plan changed: move the milestone or priority, and add a `## Decision` comment giving the reason.
+- **Starting:** create the branch with Linear's branch name, and add a `## Progress` comment with the plan, or a `## Design` comment. Set `In Progress` by hand only if there's no GitHub integration or no branch.
+- **PR opened:** put `Fixes <ID>` in the PR description, with no other issue IDs, and add a `## Progress` comment. Without the integration, also set `In Review` and attach the PR link (`links`).
+- **Ready to merge:** add the `## Implementation` comment (PR link, what changed, check results, anything left for later) **before** merging. With "merged → Done" automation, the merge then closes the issue. Without it, set `Done` after the merge.
+- **Decision taken:** add a `## Decision` comment with the date.
+- **Plan changed:** move the milestone or priority, and add a `## Decision` comment giving the reason.
+
+### Complete a synced or hand-made issue
+Issues created outside Claude (GitHub Issues sync, the Linear app, other people) skip the hook. When you find one missing fields:
+1. Set the assignee, priority, one type label, area labels and milestone, following section 1.
+2. Add Blocked by / Blocks / Related links where they apply.
+3. If the description isn't a spec yet (e.g. a user's bug report), keep their text, then add a `## Decision` comment saying what the issue will cover and where it's planned.
 
 ### When something goes wrong
 - A Linear call errored: list issues **before** retrying, so a partial create doesn't leave a duplicate.
@@ -126,5 +142,11 @@ Run this in a repo that doesn't have a `## Linear` section yet, or has an incomp
    `echo '{"tool_name":"mcp__claude_ai_Linear__save_issue","tool_input":{"team":"<team>","title":"x"}}' | CLAUDE_PROJECT_DIR=$PWD node .claude/skills/linear-issue-management/hooks/linear-issue-guard.mjs`
    It should exit with code 2.
 6. **Point agents at it.** Add one line to `AGENTS.md` (or CLAUDE.md) saying that Linear work follows this skill.
+7. **Ask about the Linear GitHub integration** and record it on the **GitHub integration** line:
+   - Is it connected, and to which repo?
+   - What's the PR automation mapping (branch pushed / PR opened / PR merged → status)?
+   - Is GitHub Issues sync on?
+
+   Linear's tools can't read these settings, so ask the developer, with AskUserQuestion. If it's not connected, write `not connected`. The developer can set it up in Linear → Settings → Integrations → GitHub, installed on the org with access to this repo only.
 
 Related: `linear-project-update` posts project status updates from the same CLAUDE.md settings.
