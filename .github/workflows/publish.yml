@@ -97,3 +97,21 @@ jobs:
           npm run release
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # n8n's verification scan checks provenance, fetches the tagged source and
+      # analyses the published tarball. It exits non-zero on any failure, so a bad
+      # release fails this job. The scanner exits silently on Node 26, so pin 24.
+      - name: Set up Node.js 24 for the n8n scan
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Run the n8n community package scan
+        # A new version can 404 on the registry for up to a minute, so retry.
+        run: |
+          for attempt in 1 2 3 4 5; do
+            npx -y @n8n/scan-community-package "@contactwise/n8n-nodes-contactwise@${GITHUB_REF_NAME}" && exit 0
+            echo "Scan attempt $attempt failed; retrying in 30s"
+            sleep 30
+          done
+          exit 1
