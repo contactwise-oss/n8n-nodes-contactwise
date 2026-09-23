@@ -1,6 +1,6 @@
 {
 	"name": "@contactwise/n8n-nodes-contactwise",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "n8n nodes for the ContactWise messaging API: send DLT-compliant SMS to Indian mobile numbers",
 	"license": "MIT",
 	"homepage": "https://github.com/contactwise-oss/n8n-nodes-contactwise#readme",
