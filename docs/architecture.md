@@ -11,7 +11,7 @@ One npm package holds every ContactWise node and a **single shared credential ty
 | Credential `ContactWise API` | `contactWiseApi` | 1 |
 | Node `ContactWise SMS` | `contactWiseSms` | 1 |
 | Node `ContactWise SMS Trigger` | `contactWiseSmsTrigger` | Later (blocked: no webhook-registration API yet, TIN-26). Renamed from `ContactWise Trigger` on 2026-09-22, before anything was published |
-| Node `ContactWise WhatsApp` | `contactWiseWhatsApp` | M3: Message → Send (TIN-39); Send Template, Media and Send and Wait to follow |
+| Node `ContactWise WhatsApp` | `contactWiseWhatsApp` | M3: Message → Send (TIN-39) and Send Template (TIN-41); Media and Send and Wait to follow |
 | Node `ContactWise WhatsApp Trigger` | `contactWiseWhatsAppTrigger` | M3 (TIN-40; blocked by webhook subscriptions, TIN-34) |
 
 Internal names (node `name`, credential `name`, parameter `name`s, option `value`s) are permanent once published, because saved workflows store them.
@@ -28,10 +28,13 @@ nodes/shared/transport.ts                      # all nodes: base URL, credential
 nodes/shared/errors.ts                         # interpretFailure(call, channel): ContactWise or Meta error → message, description, outcome (not-sent/unknown), retryable
 nodes/shared/retry.ts                          # nextRetryDelayMs(): 429/503 only, max 3 attempts, max 60 s total wait
 nodes/ContactWiseWhatsApp/ContactWiseWhatsApp.node.ts          # node description, methods, execute(); + .node.json (codex)
+nodes/ContactWiseWhatsApp/resources/message/common.ts          # 'Phone Number' + 'Recipient Phone Number' for every sending operation; postMessage()
 nodes/ContactWiseWhatsApp/resources/message/send.ts            # Message → Send: 7 types, binary upload then send by media ID
+nodes/ContactWiseWhatsApp/resources/message/sendTemplate.ts    # Message → Send Template: 'Template' locator, header/body/button components
 nodes/ContactWiseWhatsApp/resources/message/contact.ts         # contact card parameters and Meta's `contacts` body
-nodes/ContactWiseWhatsApp/methods/listSearch.ts                # 'Phone Number' resource locator list: GET /{waba-id}/phone_numbers
+nodes/ContactWiseWhatsApp/methods/listSearch.ts                # resource locator lists: phone numbers; approved templates, paged by Meta's cursor
 nodes/ContactWiseWhatsApp/shared/recipient.ts                  # normalizeRecipientPhoneNumber(): international, 8–15 digits, digits only
+nodes/ContactWiseWhatsApp/shared/currencies.ts                 # active ISO 4217 codes, inlined (no currency-codes package)
 .agents/                                       # n8n's generic agent docs (scaffold-owned, don't edit)
 .github/workflows/ci.yml, publish.yml          # lint + build; tag-triggered provenance publish
 ```
@@ -43,7 +46,7 @@ Code every node uses (transport, error mapping, retry policy) lives in `nodes/sh
 - native `FormData` multipart bodies, which n8n-core's request helper sends as `multipart/form-data`
 - the `ILoadOptionsFunctions` context, for dropdowns (TIN-39)
 
-Still to come: query strings and paging (TIN-41), binary responses (TIN-42), and the hook context (TIN-40).
+Query strings are built into the request path with `URLSearchParams` (TIN-41), so the transport has no query option. Still to come: binary responses (TIN-42) and the hook context (TIN-40).
 
 `interpretFailure()` reads two error formats:
 - **ContactWise:** `errors[]` with codes 1001 and 9000–9011, or problem+json.
@@ -110,6 +113,7 @@ Tests live in a top-level `test/` folder, not next to the code. `tsconfig.json` 
 
 Harness facts found in the spike (2026-09-22):
 - `vitest.config.mjs` aliases `n8n-workflow` to its **CommonJS** build. n8n loads community nodes with `require()`, so node code and n8n-core must share one n8n-workflow instance. With two copies, `error instanceof NodeApiError` is false for errors n8n-core creates. A harness test guards this.
+- `npm run lint:fix` can't keep node properties it doesn't understand. When it reorders `fixedCollection` values, it drops `displayOptions`, `typeOptions` and references to shared `values` arrays (found on TIN-41, 2026-09-25). Reorder those by hand instead.
 - n8n's defaults are wrong for SMS and must be overridden by our error mapping. A 500 surfaces as "The service was not able to process your request". A timeout says "consider setting the 'Retry on Fail' option", but retrying an SMS after a timeout can send it twice.
 - `nock.replyWithError` needs an `Error` instance. A plain object makes the request hang.
 

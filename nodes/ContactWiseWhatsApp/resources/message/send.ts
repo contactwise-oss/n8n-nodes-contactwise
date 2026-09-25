@@ -1,8 +1,7 @@
-import { NodeOperationError } from 'n8n-workflow';
 import type { IDataObject, IExecuteFunctions, INodeProperties } from 'n8n-workflow';
 
+import { postMessage, resolveSender } from './common';
 import { contactContent, contactDescription } from './contact';
-import { normalizeRecipientPhoneNumber } from '../../shared/recipient';
 import { contactWiseApiRequest } from '../../../shared/transport';
 
 const showForSend = { show: { resource: ['message'], operation: ['send'] } };
@@ -15,40 +14,6 @@ const MEDIA_TYPES = ['image', 'video', 'document', 'audio'];
 const CAPTIONED_TYPES = ['image', 'video', 'document'];
 
 export const sendDescription: INodeProperties[] = [
-	{
-		displayName: 'Phone Number',
-		name: 'phoneNumberId',
-		type: 'resourceLocator',
-		default: { mode: 'list', value: '' },
-		required: true,
-		description: 'Your WhatsApp number the message is sent from',
-		modes: [
-			{
-				displayName: 'From List',
-				name: 'list',
-				type: 'list',
-				typeOptions: { searchListMethod: 'getPhoneNumbers' },
-			},
-			{
-				displayName: 'ID',
-				name: 'id',
-				type: 'string',
-				placeholder: 'e.g. 100000000000002',
-			},
-		],
-		displayOptions: showForSend,
-	},
-	{
-		displayName: 'Recipient Phone Number',
-		name: 'recipientPhoneNumber',
-		type: 'string',
-		required: true,
-		default: '',
-		placeholder: 'e.g. +447700900123',
-		description:
-			'International number with country code. Spaces, dashes, dots, brackets and a leading + are allowed.',
-		displayOptions: showForSend,
-	},
 	{
 		displayName: 'Message Type',
 		name: 'messageType',
@@ -282,25 +247,7 @@ async function messageContent(
 
 /** Sends one WhatsApp message for the item at `itemIndex` and returns Meta's response. */
 export async function send(this: IExecuteFunctions, itemIndex: number): Promise<IDataObject> {
-	const credentials = await this.getCredentials('contactWiseApi', itemIndex);
-	const tenantId = credentials.tenantId as string;
-	const phoneNumberId = this.getNodeParameter('phoneNumberId', itemIndex, '', {
-		extractValue: true,
-	}) as string;
-
-	const rawRecipient = this.getNodeParameter('recipientPhoneNumber', itemIndex) as string;
-	const recipient = normalizeRecipientPhoneNumber(rawRecipient);
-	if (!recipient.ok) {
-		throw new NodeOperationError(
-			this.getNode(),
-			`'Recipient Phone Number' isn't a valid international number: '${rawRecipient}' [item ${itemIndex}]`,
-			{
-				description: 'Include the country code, e.g. +447700900123. The number needs 8–15 digits.',
-				itemIndex,
-			},
-		);
-	}
-
+	const sender = await resolveSender.call(this, itemIndex);
 	const messageType = this.getNodeParameter('messageType', itemIndex) as string;
 	const additionalFields = this.getNodeParameter(
 		'additionalFields',
@@ -308,22 +255,8 @@ export async function send(this: IExecuteFunctions, itemIndex: number): Promise<
 		{},
 	) as AdditionalFields;
 
-	const body: IDataObject = {
-		messaging_product: 'whatsapp',
-		recipient_type: 'individual',
-		to: recipient.value,
-		type: messageType,
-		[messageType]: await messageContent.call(this, messageType, itemIndex, additionalFields, () =>
-			uploadBinaryMedia.call(this, itemIndex, tenantId, phoneNumberId),
-		),
-	};
-
-	return await contactWiseApiRequest.call(
-		this,
-		'POST',
-		`/v1/waba-direct/${tenantId}/${phoneNumberId}/messages`,
-		body,
-		itemIndex,
-		'whatsapp',
+	const content = await messageContent.call(this, messageType, itemIndex, additionalFields, () =>
+		uploadBinaryMedia.call(this, itemIndex, sender.tenantId, sender.phoneNumberId),
 	);
+	return await postMessage.call(this, sender, messageType, content, itemIndex);
 }

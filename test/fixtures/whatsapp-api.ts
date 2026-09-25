@@ -43,6 +43,30 @@ export const whatsAppScenarios = {
 		body: { data, paging: { cursors: { before: 'b', after: 'a' } } },
 	}),
 
+	/**
+	 * 200 from `GET /{waba-id}/message_templates`. `after` set means another page exists:
+	 * Meta then includes `paging.next`.
+	 */
+	templates: (
+		data: Array<{ name: string; language: string; status?: string }>,
+		after?: string,
+	): GatewayScenario => ({
+		status: 200,
+		body: {
+			data: data.map((template, index) => ({
+				id: `${9000 + index}`,
+				status: 'APPROVED',
+				category: 'UTILITY',
+				components: [],
+				...template,
+			})),
+			paging: {
+				cursors: { before: 'before-cursor', after: after ?? 'last-cursor' },
+				...(after && { next: `https://graph.facebook.com/v23.0/next?after=${after}` }),
+			},
+		},
+	}),
+
 	/** 4xx with Meta's error envelope. */
 	metaError: (
 		code: number,

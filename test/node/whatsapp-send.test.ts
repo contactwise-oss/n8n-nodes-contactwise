@@ -1,57 +1,16 @@
-import type { IDataObject, INodeExecutionData } from 'n8n-workflow';
+import type { INodeExecutionData } from 'n8n-workflow';
 import { describe, expect, it } from 'vitest';
 
-import { ContactWiseApi } from '../../credentials/ContactWiseApi.credentials';
-import { ContactWiseWhatsApp } from '../../nodes/ContactWiseWhatsApp/ContactWiseWhatsApp.node';
-import { TEST_API_KEY, TEST_TENANT_ID } from '../fixtures/contactwise-api';
+import { TEST_API_KEY } from '../fixtures/contactwise-api';
 import {
 	TEST_PHONE_NUMBER_ID,
-	TEST_WABA_ID,
 	interceptGateway,
 	whatsAppScenarios,
 } from '../fixtures/whatsapp-api';
-import { runNode } from '../harness/run-node';
+import { runWhatsApp } from './whatsapp-node';
 
 // Expected request and response values come from docs/contactwise-whatsapp-api.md.
 const messagesPath = `${TEST_PHONE_NUMBER_ID}/messages`;
-
-export const baseParameters = {
-	resource: 'message',
-	operation: 'send',
-	phoneNumberId: { __rl: true, mode: 'id', value: TEST_PHONE_NUMBER_ID },
-	recipientPhoneNumber: '+44 7700 900123',
-	messageType: 'text',
-	textBody: 'Hello from n8n',
-	additionalFields: {},
-};
-
-export function sendWhatsApp(
-	overrides: {
-		parameters?: IDataObject;
-		credentials?: IDataObject;
-		input?: IDataObject[];
-		inputItems?: INodeExecutionData[];
-		continueOnFail?: boolean;
-	} = {},
-) {
-	return runNode({
-		node: new ContactWiseWhatsApp(),
-		credentialTypes: [new ContactWiseApi()],
-		credentials: {
-			contactWiseApi: {
-				apiKey: TEST_API_KEY,
-				tenantId: TEST_TENANT_ID,
-				defaultEntityId: '',
-				whatsAppBusinessAccountId: TEST_WABA_ID,
-				...overrides.credentials,
-			},
-		},
-		parameters: { ...baseParameters, ...overrides.parameters },
-		input: overrides.input,
-		inputItems: overrides.inputItems,
-		continueOnFail: overrides.continueOnFail,
-	});
-}
 
 describe('ContactWise WhatsApp: Message → Send', () => {
 	it('text: posts to the phone number ID through the gateway and outputs Meta’s response', async () => {
@@ -61,7 +20,7 @@ describe('ContactWise WhatsApp: Message → Send', () => {
 			whatsAppScenarios.messageAccepted(),
 		);
 
-		const { items, error } = await sendWhatsApp();
+		const { items, error } = await runWhatsApp();
 
 		expect(error).toBeUndefined();
 		expect(requests).toHaveLength(1);
@@ -90,7 +49,7 @@ describe('ContactWise WhatsApp: Message → Send', () => {
 			whatsAppScenarios.messageAccepted(),
 		);
 
-		const { error } = await sendWhatsApp({ parameters: { recipientPhoneNumber: '1234567' } });
+		const { error } = await runWhatsApp({ parameters: { recipientPhoneNumber: '1234567' } });
 
 		expect(error?.message).toContain("'Recipient Phone Number'");
 		expect(error?.message).toContain('[item 0]');
@@ -153,7 +112,7 @@ describe('ContactWise WhatsApp: Message → Send', () => {
 			whatsAppScenarios.messageAccepted(),
 		);
 
-		const { error } = await sendWhatsApp({ parameters });
+		const { error } = await runWhatsApp({ parameters });
 
 		expect(error).toBeUndefined();
 		expect(requests[0].body).toEqual({
@@ -171,7 +130,7 @@ describe('ContactWise WhatsApp: Message → Send', () => {
 			whatsAppScenarios.messageAccepted(),
 		);
 
-		await sendWhatsApp({
+		await runWhatsApp({
 			parameters: {
 				messageType: 'location',
 				latitude: 51.5007,
@@ -198,7 +157,7 @@ describe('ContactWise WhatsApp: Message → Send', () => {
 			whatsAppScenarios.messageAccepted(),
 		);
 
-		await sendWhatsApp({
+		await runWhatsApp({
 			parameters: {
 				messageType: 'contacts',
 				contactFormattedName: 'Asha Rao',
@@ -260,7 +219,7 @@ describe('ContactWise WhatsApp: Message → Send', () => {
 			whatsAppScenarios.messageAccepted(),
 		);
 
-		await sendWhatsApp({
+		await runWhatsApp({
 			parameters: { messageType: 'contacts', contactFormattedName: 'Asha Rao', contactFields: {} },
 		});
 
@@ -286,7 +245,7 @@ describe('ContactWise WhatsApp: Message → Send', () => {
 			);
 			const message = interceptGateway('post', messagesPath, whatsAppScenarios.messageAccepted());
 
-			const { error } = await sendWhatsApp({
+			const { error } = await runWhatsApp({
 				inputItems: [itemWithImage],
 				parameters: {
 					messageType: 'image',
@@ -319,7 +278,7 @@ describe('ContactWise WhatsApp: Message → Send', () => {
 				whatsAppScenarios.mediaUploaded(),
 			);
 
-			const { error } = await sendWhatsApp({
+			const { error } = await runWhatsApp({
 				inputItems: [{ json: {} }],
 				parameters: {
 					messageType: 'image',
@@ -341,7 +300,7 @@ describe('ContactWise WhatsApp: Message → Send', () => {
 			whatsAppScenarios.messageAccepted(),
 		);
 
-		const { error } = await sendWhatsApp({
+		const { error } = await runWhatsApp({
 			parameters: { phoneNumberId: { __rl: true, mode: 'list', value: '100000000000003' } },
 		});
 
@@ -360,7 +319,7 @@ describe('ContactWise WhatsApp: Message → Send', () => {
 				}),
 			);
 
-			const { error } = await sendWhatsApp();
+			const { error } = await runWhatsApp();
 
 			expect(error?.message).toBe('WhatsApp rejected the message: Re-engagement message [item 0]');
 			expect(error?.description).toContain('Send an approved template instead.');
@@ -375,7 +334,7 @@ describe('ContactWise WhatsApp: Message → Send', () => {
 			);
 			interceptGateway('post', messagesPath, whatsAppScenarios.messageAccepted());
 
-			const { items, error } = await sendWhatsApp({ input: [{}, {}], continueOnFail: true });
+			const { items, error } = await runWhatsApp({ input: [{}, {}], continueOnFail: true });
 
 			expect(error).toBeUndefined();
 			expect(items).toHaveLength(2);
@@ -396,7 +355,7 @@ describe('ContactWise WhatsApp: Message → Send', () => {
 			const { requests } = interceptGateway('post', messagesPath, whatsAppScenarios.serverError());
 			interceptGateway('post', messagesPath, whatsAppScenarios.messageAccepted());
 
-			const { error } = await sendWhatsApp();
+			const { error } = await runWhatsApp();
 
 			expect(error?.message).toMatch(/^The WhatsApp message may already have been sent/);
 			expect(requests).toHaveLength(1);
@@ -410,7 +369,7 @@ describe('ContactWise WhatsApp: Message → Send', () => {
 			});
 			const accepted = interceptGateway('post', messagesPath, whatsAppScenarios.messageAccepted());
 
-			const { error, items } = await sendWhatsApp();
+			const { error, items } = await runWhatsApp();
 
 			expect(error).toBeUndefined();
 			expect(limited.requests).toHaveLength(1);
