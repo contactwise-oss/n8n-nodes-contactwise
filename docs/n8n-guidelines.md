@@ -36,13 +36,21 @@ A condensed version of n8n's verification guidelines, UX guidelines and code sta
 
 ## Project glossary
 
-User-facing display names. `copy-reviewer` enforces these.
+User-facing display names. `copy-reviewer` enforces these. The credential terms apply everywhere. The SMS and WhatsApp tables apply to their own nodes, so 'To' in SMS and 'Recipient Phone Number' in WhatsApp don't conflict. Rows in lower case are terms used inside sentences, not display names.
+
+### Credential
 
 | Term | Means | Don't use in the UI |
 |---|---|---|
-| API Key | ContactWise API key (credential) | token, secret, auth key |
-| Tenant ID | ContactWise tenant (credential) | account ID, org ID |
-| Default Entity ID | Credential-level fallback DLT entity | PE ID (fine to mention in a description) |
+| API Key | ContactWise API key | token, secret, auth key |
+| Tenant ID | ContactWise tenant | account ID, org ID |
+| Default Entity ID | Fallback DLT entity for the SMS node | PE ID (fine to mention in a description) |
+| WhatsApp Business Account ID | The tenant's one WhatsApp Business Account, used by the WhatsApp node | WABA ID (fine to mention in a description), business ID |
+
+### SMS
+
+| Term | Means | Don't use in the UI |
+|---|---|---|
 | Sender ID | DLT-registered sender | header, sender name, from |
 | To | Recipient mobile number | phone, mobile, recipient number |
 | Message | SMS text | body, content, text |
@@ -54,6 +62,16 @@ User-facing display names. `copy-reviewer` enforces these.
 | Custom ID | Caller-supplied reference echoed in delivery reports | reference, external ID |
 | Metadata | Up to 10 key/value pairs echoed in delivery reports | tags, attributes |
 | Callback URL | Per-message delivery-report URL | webhook, DLR URL |
+
+### WhatsApp
+
+| Term | Means | Don't use in the UI |
+|---|---|---|
+| Phone Number | The tenant's WhatsApp number the message is sent from (a phone number ID behind the scenes) | sender, from, business number, phone number ID (fine to mention in a description) |
+| Recipient Phone Number | The number that receives the message, in international format | To, mobile, wa_id |
+| Template | An approved WhatsApp message template | HSM, DLT template, message template ID |
+| Media ID | The ID WhatsApp returns for uploaded media | handle, attachment ID |
+| 24-hour window | The time since the recipient last messaged, during which free-form messages are allowed | session, conversation window, service window |
 
 ## Code standards
 

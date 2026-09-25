@@ -46,6 +46,15 @@ export class ContactWiseApi implements ICredentialType {
 			description:
 				"DLT principal entity ID (PE ID) used when a node's 'DLT Entity ID' is empty. Leave empty to set it on each node.",
 		},
+		{
+			displayName: 'WhatsApp Business Account ID',
+			name: 'whatsAppBusinessAccountId',
+			type: 'string',
+			default: '',
+			placeholder: 'e.g. 100000000000001',
+			description:
+				"Your tenant's WhatsApp Business Account ID, used by the ContactWise WhatsApp node. Leave empty if you only send SMS. Contact ContactWise support if you don't have one.",
+		},
 	];
 
 	authenticate: IAuthenticateGeneric = {

@@ -6,9 +6,11 @@ Guidance for AI coding agents (Claude Code, Codex and others) working in this re
 
 `@contactwise/n8n-nodes-contactwise` is an n8n community node package for the ContactWise messaging API. The repo is public, MIT-licensed, and has to pass n8n's **verified community node** review, which is what makes a node installable on n8n Cloud.
 
-Phase 1 (current) is the `ContactWise API` credential plus the `ContactWise SMS` node: one operation (Send), Indian recipients only, with DLT values (sender, template ID, entity ID, body) entered manually. The Trigger node, API-driven dropdowns and WhatsApp come later. Don't build them unless the task asks for it.
+Phase 1 (shipped as 0.1.x) is the `ContactWise API` credential plus the `ContactWise SMS` node: one operation (Send), Indian recipients only, with DLT values (sender, template ID, entity ID, body) entered manually.
 
-**Status:** scaffolded with the n8n-node CLI (`programmatic/example` template, TIN-7). The credential (TIN-8), the Send operation (TIN-12), and API error mapping with the retry policy (TIN-13) are built. If the scaffold is ever regenerated, keep **this** `AGENTS.md` and `CLAUDE.md`, not the template's.
+The current work (milestone M3, epic TIN-30) is WhatsApp: the `ContactWise WhatsApp` node, then the `ContactWise WhatsApp Trigger`. They reuse the same credential and call the WhatsApp gateway, a transparent proxy over Meta's Graph API (`docs/contactwise-whatsapp-api.md`). The SMS Trigger and API-driven SMS dropdowns come later. Don't build them unless the task asks for it.
+
+**Status:** scaffolded with the n8n-node CLI (`programmatic/example` template, TIN-7). The credential (TIN-8), the Send operation (TIN-12), and API error mapping with the retry policy (TIN-13) are built. The transport, error mapping and retry policy are shared by all nodes in `nodes/shared/` (TIN-38). If the scaffold is ever regenerated, keep **this** `AGENTS.md` and `CLAUDE.md`, not the template's.
 
 ## Commands
 
@@ -37,8 +39,8 @@ Never use `n8n-node release --publish`: a package published from a laptop has no
 
 - **Zero runtime `dependencies`** (verification requirement). Make HTTP calls with `this.helpers.httpRequestWithAuthentication`, never with an HTTP or SDK package. Tooling goes in `devDependencies`.
 - **No `process.env` and no `fs`** in node or credential code (verification requirement).
-- **Tests never call the real ContactWise API.** There's no sandbox, so every real request sends a real, billed SMS.
-- **Never auto-retry a send after a 500, 502/504 or timeout.** The API has no idempotency keys, so a retry can deliver the SMS twice. Only 429 and 503 are safe to retry, honouring `Retry-After`.
+- **Tests never call the real ContactWise API.** There's no sandbox, so every real request sends a real, billed SMS or WhatsApp message.
+- **Never auto-retry a send after a 500, 502/504 or timeout.** The API has no idempotency keys, so a retry can deliver the SMS or WhatsApp message twice. Only 429 and 503 are safe to retry, honouring `Retry-After`.
 - **Published node versions are frozen.** Breaking parameter or behaviour changes go in a new node version.
 - When you add, rename or remove a node or credential, update `n8n.nodes` / `n8n.credentials` in `package.json`. Those entries point at `dist/` files.
 - User-facing text is English and follows n8n copy rules (Title Case labels, sentence-case descriptions, booleans start with "Whether").
@@ -54,7 +56,8 @@ Never use `n8n-node release --publish`: a package published from a laptop has no
 | Planning a task | `.agents/workflow.md` |
 | Package structure, credential fields, shared request code, decisions | `docs/architecture.md` |
 | Writing or changing tests | The Test seams section of `docs/architecture.md` |
-| Request bodies, responses, error codes, retries, DLT, phone formats | `docs/contactwise-sms-api.md` |
+| SMS request bodies, responses, error codes, retries, DLT, phone formats | `docs/contactwise-sms-api.md` |
+| WhatsApp routes, IDs, request and response shapes, Meta error codes | `docs/contactwise-whatsapp-api.md` |
 | User-facing copy and error text, dependencies, release and verification | `docs/n8n-guidelines.md` |
 | Creating, updating or closing Linear issues; project updates | `.claude/skills/linear-issue-management/SKILL.md`, with this project's values in the `## Linear` section of `CLAUDE.md` |
 

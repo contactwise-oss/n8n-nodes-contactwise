@@ -10,15 +10,16 @@ One npm package holds every ContactWise node and a **single shared credential ty
 |---|---|---|
 | Credential `ContactWise API` | `contactWiseApi` | 1 |
 | Node `ContactWise SMS` | `contactWiseSms` | 1 |
-| Node `ContactWise Trigger` | `contactWiseTrigger` | 1.1 (blocked: no webhook-registration API yet) |
-| Node `ContactWise WhatsApp` | `contactWiseWhatsApp` | 3 |
+| Node `ContactWise SMS Trigger` | `contactWiseSmsTrigger` | Later (blocked: no webhook-registration API yet, TIN-26). Renamed from `ContactWise Trigger` on 2026-09-22, before anything was published |
+| Node `ContactWise WhatsApp` | `contactWiseWhatsApp` | M3 (TIN-39 onwards) |
+| Node `ContactWise WhatsApp Trigger` | `contactWiseWhatsAppTrigger` | M3 (TIN-40; blocked by webhook subscriptions, TIN-34) |
 
 Internal names (node `name`, credential `name`, parameter `name`s, option `value`s) are permanent once published, because saved workflows store them.
 
 Layout (paths marked `planned` arrive with the issue in brackets):
 
 ```
-credentials/ContactWiseApi.credentials.ts      # API Key, Tenant ID, Default Entity ID; header auth; Test request
+credentials/ContactWiseApi.credentials.ts      # API Key, Tenant ID, Default Entity ID, WhatsApp Business Account ID; header auth; Test request
 icons/contactwise.svg, contactwise.dark.svg    # brand Rising Mark: primary (light), inverted (dark); build copies to dist/icons
 nodes/ContactWiseSms/ContactWiseSms.node.ts    # node description + execute(); + ContactWiseSms.node.json (codex)
 nodes/ContactWiseSms/resources/sms/send.ts     # Send operation: parameters + send() per item
@@ -26,6 +27,7 @@ nodes/ContactWiseSms/shared/phone.ts           # normalizeIndianMobile(): common
 nodes/shared/transport.ts                      # all nodes: base URL, credential auth, X-CW-Source header, retry loop, sanitized NodeApiError
 nodes/shared/errors.ts                         # interpretFailure(call, channel): ContactWise or Meta error → message, description, outcome (not-sent/unknown), retryable
 nodes/shared/retry.ts                          # nextRetryDelayMs(): 429/503 only, max 3 attempts, max 60 s total wait
+nodes/ContactWiseWhatsApp/                     # planned (TIN-39): ContactWise WhatsApp node, programmatic
 .agents/                                       # n8n's generic agent docs (scaffold-owned, don't edit)
 .github/workflows/ci.yml, publish.yml          # lint + build; tag-triggered provenance publish
 ```
@@ -45,8 +47,11 @@ The status rules come before either format: 429/503 are retryable, and 5xx, 502/
 | Field | Goes to |
 |---|---|
 | API Key (password) | `X-CW-Api-Key` header on every request |
-| Tenant ID | URL path: `/v1/sms/{tenantId}/…` |
+| Tenant ID | URL path: `/v1/sms/{tenantId}/…` for SMS, `/v1/waba-direct/{tenantId}/…` for WhatsApp |
 | Default Entity ID (optional) | Fallback for the SMS node's DLT Entity ID |
+| WhatsApp Business Account ID (optional) | The tenant's one WhatsApp Business Account (TIN-37). The WhatsApp node reads it for `/{waba-id}/phone_numbers` and `/{waba-id}/message_templates`. There's no per-node override, and SMS never uses it |
+
+Both nodes share this one credential. That's one of verification's rules: a package covers one service, and SMS and WhatsApp are both ContactWise.
 
 The base URL is fixed at `https://api.contactwise.io` and is not a user field.
 
@@ -101,6 +106,9 @@ Harness facts found in the spike (2026-09-22):
 | Topic | Status | Notes |
 |---|---|---|
 | Node style for `ContactWise SMS` | **Programmatic** (2026-09-22) | Needed for selective retry (429/503 only, honouring `Retry-After`) and direct unit testing of `execute()`, and it keeps full versioning available. The Trigger must be programmatic anyway. Trade-off accepted: more code than declarative, which n8n calls the faster route to approval. |
+| Node style for `ContactWise WhatsApp` and its trigger | **Programmatic** (TIN-30, 2026-09-22) | Same reasons as SMS: selective retry and full versioning. Trigger nodes must be programmatic anyway. |
+| WhatsApp API contract | **`docs/contactwise-whatsapp-api.md`** (TIN-37, 2026-09-25) | The gateway is a transparent proxy over Meta's Graph API v23.0 at `/v1/waba-direct/{tenantId}/{**catch-all}`. Request, response and error shapes are Meta's. |
+| WhatsApp Send and Wait | **Rebuilt on `n8n-workflow` primitives** (TIN-30, 2026-09-22) | A community node can't import nodes-base's `sendAndWait` helpers. The rebuild uses `getSignedResumeUrl`, `putExecutionToWait`, `WAIT_INDEFINITELY` and `SEND_AND_WAIT_OPERATION`. A spike comes first (TIN-43). |
 | Test depth | **Vitest, L1 + L2** (2026-09-22) | L1: unit tests of pure logic (normalization, error mapping, retry decisions). L2: the node executed through `n8n-core`'s execution engine, with HTTP intercepted by nock. No automated real-n8n E2E; the UI check is manual via `npm run dev` / `dev:docker`. Real-API checks are manual on the test tenant (TIN-15). |
 | L2 spike outcome | **Kept** (TIN-19, 2026-09-22) | `WorkflowExecute`, `ExecutionLifecycleHooks` and `Credentials` are public `n8n-core` exports, so there are no deep imports into its internals. Node and credential classes are registered directly (no build needed). `n8n-core` 2.40.3 and `n8n-workflow` 2.40.1 are pinned devDependencies that must move together. |
 | Agent guardrails | **Block publishing, block runtime deps** (2026-09-22) | Enforced by Claude Code hooks. CI also checks that `dependencies` is empty. |

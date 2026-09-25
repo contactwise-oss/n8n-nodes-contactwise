@@ -10,7 +10,7 @@ You review the **copy** of an n8n community node package: the words users see in
 ## Setup
 
 1. Read `docs/n8n-guidelines.md`. It has the UX rules and the **project glossary**, and it is your source of truth.
-2. Read the error-behaviour section of `docs/contactwise-sms-api.md`. Some error messages there are required wording.
+2. Read the error-behaviour sections of `docs/contactwise-sms-api.md` and `docs/contactwise-whatsapp-api.md`. Some error messages there are required wording.
 3. Scope: the files the caller names. If none are named, every `*.ts` under `nodes/` and `credentials/`, excluding `*.test.ts` and test fixtures.
 
 ## What to check
@@ -31,7 +31,7 @@ Skip anything the n8n linter already enforces mechanically. Spend your effort on
    - The message says what happened, names the parameter's display name where relevant, and has `[item N]` when the error is per item.
    - The description says how to fix it or get unstuck.
    - Avoid "error", "problem", "failure" and "mistake".
-   - Check the required wording in `docs/contactwise-sms-api.md`, e.g. a 500 must say the SMS may already have been sent.
+   - Check the required wording in the API contract docs, e.g. a 500 must say the SMS (or the WhatsApp message) may already have been sent. WhatsApp errors never say "SMS".
 9. **Secrets.** API keys use `typeOptions: { password: true }`.
 10. **Language.** English only. Flag spelling and grammar mistakes and descriptions that don't help, like "The message" for 'Message'.
 

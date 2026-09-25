@@ -1,0 +1,113 @@
+# ContactWise WhatsApp API: the contract the node is built against
+
+The public docs at https://docs.contactwise.io/ have no WhatsApp section yet (TIN-35), so this file is the contract. Facts the owner confirmed are marked **confirmed**. Request and response shapes come from Meta's WhatsApp Cloud API reference (Graph API v23.0), because the gateway passes them through unchanged. Anything marked **unconfirmed** needs checking against the live gateway before the public release (TIN-44).
+
+## Base URL, path and auth (confirmed 2026-09-25, TIN-31)
+
+- **Route:** `https://api.contactwise.io/v1/waba-direct/{tenantId}/{**catch-all}`. It forwards to `https://graph.facebook.com/v23.0/{**catch-all}`.
+  - Example: `POST /v1/waba-direct/{tenantId}/{phone-number-id}/messages` → `POST graph.facebook.com/v23.0/{phone-number-id}/messages`.
+- **Graph API version:** pinned by the gateway, and not part of the node's URL. A gateway version bump can change response shapes. Who bumps it, and how that's announced, is an open question on TIN-30.
+- **Auth:** the same `X-CW-Api-Key` header as SMS, with the tenant ID in the path. The gateway swaps the key for the tenant's WhatsApp Business Account token, so the node never sees a Meta token.
+- **One WhatsApp Business Account per tenant** (confirmed 2026-09-25). Its ID is the credential's optional 'WhatsApp Business Account ID' field. There's no per-node override. SMS never uses it.
+- Requests, responses and Meta's errors pass through **unchanged**.
+- **Path allowlist (TIN-32).** The node must only call the paths listed below.
+
+## IDs the node works with
+
+| ID | Where it comes from | Used in |
+|---|---|---|
+| WhatsApp Business Account ID (WABA ID) | Credential field `whatsAppBusinessAccountId` | `/{waba-id}/phone_numbers`, `/{waba-id}/message_templates` |
+| Phone number ID | 'Phone Number' dropdown (from `/{waba-id}/phone_numbers`) | `/{phone-number-id}/messages`, `/{phone-number-id}/media` |
+| Media ID | Returned by media upload, or by Meta in inbound messages | message `image.id` etc., `/{media-id}` |
+
+The phone number ID is Meta's internal ID. It's **not** the display phone number.
+
+## Operations
+
+Each input item makes one API call (FR-W1). Every request sends the `X-CW-Source` header (FR-W4).
+
+### List phone numbers: `GET /{waba-id}/phone_numbers` (TIN-39)
+
+Used by the 'Phone Number' dropdown.
+
+**200:** `{ "data": [ { "id", "display_phone_number", "verified_name", "quality_rating", … } ], "paging": { "cursors": { "before", "after" } } }`. The dropdown label is `{display_phone_number} - {verified_name}`, and the value is `id`.
+
+### Send a message: `POST /{phone-number-id}/messages` (TIN-39)
+
+```json
+{ "messaging_product": "whatsapp", "recipient_type": "individual", "to": "<digits>", "type": "<type>", "<type>": { … } }
+```
+
+| `type` | Object | Notes |
+|---|---|---|
+| `text` | `{ "body", "preview_url" }` | `body` max 4096 characters |
+| `image`, `video` | `{ "link" }` or `{ "id" }`, plus `caption` | |
+| `document` | `{ "link" }` or `{ "id" }`, plus `caption`, `filename` | |
+| `audio` | `{ "link" }` or `{ "id" }` | **No caption**: Meta doesn't support one (FR-W5) |
+| `location` | `{ "latitude", "longitude", "name", "address" }` | |
+| `contacts` | `[ { "name": { "formatted_name", … }, "addresses", "birthday", "emails", "org", "phones", "urls" } ]` | `name.formatted_name` is required |
+| `template` | `{ "name", "language": { "code" }, "components": [ … ] }` | Send Template, TIN-41 |
+
+`to`: the international number as digits only, 8–15 digits, no `+` (FR-W2). There's no country restriction and no DLT.
+
+**200:** `{ "messaging_product": "whatsapp", "contacts": [ { "input", "wa_id" } ], "messages": [ { "id" } ] }`. A 200 means Meta **accepted** the message, not that it was delivered. Delivery arrives later as a status webhook (TIN-40).
+
+Outside the 24-hour customer service window, only templates can be sent. Free-form messages then fail with 131047.
+
+### List templates: `GET /{waba-id}/message_templates?status=APPROVED` (TIN-41)
+
+**200:** `{ "data": [ { "id", "name", "language", "status", "category", "components" } ], "paging": { "cursors": { "after" }, "next" } }`. Follow `paging.cursors.after` until there's no `next`: the list is paged. The official node reads only the first page, which is a bug (FR-W5).
+
+### Upload media: `POST /{phone-number-id}/media` (TIN-39, TIN-42)
+
+Multipart form: `messaging_product=whatsapp`, `type=<mime type>`, `file=<binary>`. Built with native `FormData`/`Blob`, with no `form-data` package.
+
+**200:** `{ "id": "<media-id>" }`.
+
+### Media metadata and delete: `GET` / `DELETE /{media-id}` (TIN-42)
+
+- `GET` 200: `{ "messaging_product", "url", "mime_type", "sha256", "file_size", "id" }`. The `url` needs Meta's token, which the customer doesn't have. So **Media → Download needs the streaming route in TIN-33** and doesn't return this URL.
+- `DELETE` 200: `{ "success": true }`.
+
+### Not built yet (API team)
+
+- **Media download that streams the file:** TIN-33. The route isn't designed yet.
+- **Webhook subscriptions and signed forwarding** for the trigger: TIN-34. Not designed yet.
+
+## Errors
+
+### Status rules come first
+
+These are the same send-safety rules as SMS (`nodes/shared/errors.ts`, `nodes/shared/retry.ts`):
+
+| Status | Meaning | Node: retry? |
+|---|---|---|
+| 429, 503 | Nothing was sent | **Yes**, honouring `Retry-After`. At most 3 attempts and 60 s of total waiting |
+| 500 and other 5xx | **Outcome unknown**: the message may have been sent | **Never** |
+| 502 / 504 / timeout | Outcome unknown | **Never** |
+
+There are no idempotency keys, so a retry after an unknown outcome can deliver the message twice.
+
+**Unconfirmed:** whether the gateway itself sends 429 or 503 with `Retry-After`, and what body it uses. Also unconfirmed: what the gateway returns for a bad or missing `X-CW-Api-Key`. The node assumes 401, as for SMS (TIN-35).
+
+### Meta's error envelope
+
+For other 4xx responses the body is Meta's:
+
+```json
+{ "error": { "message": "(#131047) Re-engagement message", "type": "OAuthException", "code": 131047,
+  "error_data": { "messaging_product": "whatsapp", "details": "…" }, "fbtrace_id": "…" } }
+```
+
+The node strips the `(#code)` prefix, shows `error_data.details`, and quotes `fbtrace_id` as the trace ID. It branches on `code`, never on `message`.
+
+| Code | Meaning | Fix the node gives |
+|---|---|---|
+| 131047 | More than 24 hours since the recipient last messaged | Send an approved template instead |
+| 130429 | The number's throughput limit was reached | Send more slowly, then run the workflow again |
+| 131056 | Too many messages to the same recipient in a short time | Wait before sending to this recipient again |
+| 131026 | Undeliverable: not on WhatsApp, or an old app | Check that the number is on WhatsApp |
+| 132000–132999 | Template problems: doesn't exist, not approved, paused, or wrong parameter count | Check the template, its language and its parameters |
+| anything else | | Check the WhatsApp message and recipient |
+
+Some failures, including 131047 and 131026, can also arrive **later as a failed status webhook** instead of a synchronous error. Those only show up through the trigger (TIN-40).
