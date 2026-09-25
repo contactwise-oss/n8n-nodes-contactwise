@@ -22,17 +22,23 @@ credentials/ContactWiseApi.credentials.ts      # API Key, Tenant ID, Default Ent
 icons/contactwise.svg, contactwise.dark.svg    # brand Rising Mark: primary (light), inverted (dark); build copies to dist/icons
 nodes/ContactWiseSms/ContactWiseSms.node.ts    # node description + execute(); + ContactWiseSms.node.json (codex)
 nodes/ContactWiseSms/resources/sms/send.ts     # Send operation: parameters + send() per item
-nodes/ContactWiseSms/shared/transport.ts       # base URL, credential auth, X-CW-Source header, retry loop, sanitized NodeApiError
-nodes/ContactWiseSms/shared/phone.ts           # normalizeIndianMobile(): common input forms → E.164 +91…
-nodes/ContactWiseSms/shared/errors.ts          # interpretFailure(): API failure → message, description, outcome (not-sent/unknown), retryable
-nodes/ContactWiseSms/shared/retry.ts           # nextRetryDelayMs(): 429/503 only, max 3 attempts, max 60 s total wait
+nodes/ContactWiseSms/shared/phone.ts           # normalizeIndianMobile(): common input forms → E.164 +91… (SMS only)
+nodes/shared/transport.ts                      # all nodes: base URL, credential auth, X-CW-Source header, retry loop, sanitized NodeApiError
+nodes/shared/errors.ts                         # interpretFailure(call, channel): ContactWise or Meta error → message, description, outcome (not-sent/unknown), retryable
+nodes/shared/retry.ts                          # nextRetryDelayMs(): 429/503 only, max 3 attempts, max 60 s total wait
 .agents/                                       # n8n's generic agent docs (scaffold-owned, don't edit)
 .github/workflows/ci.yml, publish.yml          # lint + build; tag-triggered provenance publish
 ```
 
 `package.json` has `"n8n": { "strict": true }`, which is n8n Cloud eligibility mode: the ESLint config must stay the n8n default (`n8n-node cloud-support` shows the status). Only `credentials/**`, `nodes/**` and `package.json` are compiled, so anything else (tests, fixtures) stays out of `dist/`.
 
-Once a second node exists, move code that both nodes use (transport, error mapping) out of `nodes/ContactWiseSms/shared/` into a package-level shared folder.
+Code every node uses (transport, error mapping, retry policy) lives in `nodes/shared/` (TIN-38). Code only one node uses stays in that node's own `shared/` folder. The transport grows only when a node needs a new capability (query strings, multipart, binary responses, load-options and hook contexts), and it's tested at the L2 seam through that node.
+
+`interpretFailure()` reads two error formats:
+- **ContactWise:** `errors[]` with codes 1001 and 9000–9011, or problem+json.
+- **Meta:** the Graph API envelope `{ error: { message, code, error_data.details, fbtrace_id } }`, which the WhatsApp gateway passes through unchanged. The `(#code)` prefix is stripped, `fbtrace_id` becomes the trace ID, and codes 131047, 130429, 131056, 131026 and 132xxx get specific fixes.
+
+The status rules come before either format: 429/503 are retryable, and 5xx, 502/504 and timeouts are an unknown outcome that's never retried. The `channel` argument (`sms` or `whatsapp`) names what was sent in every message, so WhatsApp errors never say "SMS".
 
 ## Credential
 

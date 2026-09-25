@@ -8,8 +8,8 @@ import type {
 import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
 
 import { send, sendDescription } from './resources/sms/send';
-import type { SendFailure } from './shared/errors';
-import { FAILURE_CONTEXT_KEY } from './shared/transport';
+import type { SendFailure } from '../shared/errors';
+import { FAILURE_CONTEXT_KEY } from '../shared/transport';
 
 export class ContactWiseSms implements INodeType {
 	description: INodeTypeDescription = {

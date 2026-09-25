@@ -9,8 +9,8 @@ import type {
 } from 'n8n-workflow';
 
 // Compiles to a require of dist/package.json, so that file must stay in the published package.
-import { version } from '../../../package.json';
-import { interpretFailure, type FailedCall, type SendFailure } from './errors';
+import { version } from '../../package.json';
+import { interpretFailure, type Channel, type FailedCall, type SendFailure } from './errors';
 import { nextRetryDelayMs } from './retry';
 
 export const CONTACTWISE_BASE_URL = 'https://api.contactwise.io';
@@ -57,7 +57,8 @@ function networkErrorCode(error: unknown): string | undefined {
 
 /**
  * Calls the ContactWise API, retrying only when the API guarantees nothing was sent (429/503)
- * and within the retry policy. Every other failure becomes a NodeApiError with our wording.
+ * and within the retry policy. Every other failure becomes a NodeApiError with our wording,
+ * which names what the channel sends (an SMS or a WhatsApp message).
  */
 export async function contactWiseApiRequest(
 	this: IExecuteFunctions,
@@ -65,6 +66,7 @@ export async function contactWiseApiRequest(
 	path: string,
 	body: IDataObject,
 	itemIndex: number,
+	channel: Channel,
 ): Promise<IDataObject> {
 	let attempts = 0;
 	let waitedMs = 0;
@@ -96,7 +98,7 @@ export async function contactWiseApiRequest(
 			call = { networkError: { code, message: code } };
 		}
 
-		const failure = interpretFailure(call);
+		const failure = interpretFailure(call, channel);
 		const delayMs = nextRetryDelayMs(failure, { attempts, waitedMs });
 		if (delayMs === undefined) throw toNodeApiError(this.getNode(), failure, itemIndex);
 

@@ -2,7 +2,7 @@ import { NodeOperationError } from 'n8n-workflow';
 import type { IDataObject, IExecuteFunctions, INodeProperties } from 'n8n-workflow';
 
 import { normalizeIndianMobile } from '../../shared/phone';
-import { contactWiseApiRequest } from '../../shared/transport';
+import { contactWiseApiRequest } from '../../../shared/transport';
 
 const showForSend = { show: { resource: ['sms'], operation: ['send'] } };
 
@@ -236,6 +236,7 @@ export async function send(this: IExecuteFunctions, itemIndex: number): Promise<
 		`/v1/sms/${credentials.tenantId as string}/send`,
 		body,
 		itemIndex,
+		'sms',
 	);
 
 	return {

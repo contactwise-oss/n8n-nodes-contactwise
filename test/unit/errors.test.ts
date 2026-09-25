@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { interpretFailure } from '../../nodes/ContactWiseSms/shared/errors';
+import { interpretFailure } from '../../nodes/shared/errors';
 
 // One case per row of the error table in docs/contactwise-sms-api.md.
 describe('interpretFailure', () => {
@@ -158,4 +158,136 @@ describe('interpretFailure', () => {
 			expect(`${failure.message} ${failure.description}`).not.toMatch(/retry on fail/i);
 		},
 	);
+
+	describe('WhatsApp channel', () => {
+		it('timeout: says the WhatsApp message, not an SMS, may already have been sent', () => {
+			const failure = interpretFailure(
+				{ networkError: { code: 'ETIMEDOUT', message: 'connect ETIMEDOUT' } },
+				'whatsapp',
+			);
+
+			expect(failure.outcome).toBe('unknown');
+			expect(failure.message).toBe(
+				'The WhatsApp message may already have been sent: the connection to ContactWise failed',
+			);
+			expect(`${failure.message} ${failure.description}`).not.toMatch(/SMS/);
+		});
+
+		it.each([
+			[
+				'500',
+				{ statusCode: 500, body: { error: 'An unexpected error occurred' } },
+				'The WhatsApp message may already have been sent: ContactWise returned an unexpected response',
+			],
+			[
+				'429',
+				{ statusCode: 429, body: {} },
+				'ContactWise is limiting how fast WhatsApp messages can be sent',
+			],
+			[
+				'400 errors[]',
+				{ statusCode: 400, body: { errors: [{ code: 9999, message: 'Bad value' }] } },
+				'ContactWise rejected the WhatsApp message: Bad value',
+			],
+			[
+				'unmapped status',
+				{ statusCode: 404, body: {} },
+				"ContactWise didn't accept the WhatsApp message (status 404)",
+			],
+		])('%s: names the WhatsApp message, never an SMS', (_name, call, message) => {
+			const failure = interpretFailure(call, 'whatsapp');
+
+			expect(failure.message).toBe(message);
+			expect(`${failure.message} ${failure.description}`).not.toMatch(/SMS/);
+		});
+	});
+
+	// Meta's Graph API error envelope, passed through unchanged by the WhatsApp gateway.
+	// Shapes and codes from Meta's WhatsApp Cloud API error reference.
+	describe('Meta error envelope', () => {
+		it('400: not sent, strips the (#code) prefix, keeps the code, details and fbtrace_id', () => {
+			const failure = interpretFailure(
+				{
+					statusCode: 400,
+					body: {
+						error: {
+							message: '(#100) Invalid parameter',
+							type: 'OAuthException',
+							code: 100,
+							error_data: { messaging_product: 'whatsapp', details: 'Param to is not valid' },
+							fbtrace_id: 'AbC123',
+						},
+					},
+				},
+				'whatsapp',
+			);
+
+			expect(failure).toMatchObject({
+				outcome: 'not-sent',
+				retryable: false,
+				httpStatus: 400,
+				codes: [100],
+				messages: ['Invalid parameter'],
+				traceId: 'AbC123',
+				message: 'WhatsApp rejected the message: Invalid parameter',
+			});
+			expect(failure.description).toContain('Nothing was sent.');
+			// Meta's detail has no full stop; it must not run into the next sentence.
+			expect(failure.description).toContain('Nothing was sent. Param to is not valid. ');
+			expect(failure.description).toContain('AbC123');
+		});
+
+		// Codes and meanings from Meta's WhatsApp Cloud API error code reference.
+		it.each([
+			[131047, 'Re-engagement message', 'Send an approved template instead.'],
+			[130429, 'Rate limit hit', 'Send more slowly'],
+			[
+				131056,
+				'(Business Account, Consumer Account) pair rate limit hit',
+				'Wait before sending to this recipient again.',
+			],
+			[131026, 'Message undeliverable', 'Check that the number is on WhatsApp'],
+			[132000, 'Number of parameters does not match the expected number of params', 'template'],
+			[132001, 'Template name does not exist in the translation', 'template'],
+			[132015, 'Template is paused', 'template'],
+		])('%i: adds the specific fix, not the general one', (code, message, fix) => {
+			const failure = interpretFailure(
+				{ statusCode: 400, body: { error: { message: `(#${code}) ${message}`, code } } },
+				'whatsapp',
+			);
+
+			expect(failure.codes).toEqual([code]);
+			expect(failure.description).toContain(fix);
+			expect(failure.description).not.toContain('Check the values listed above');
+		});
+
+		it('429 with a Meta body stays retryable: the gateway guarantees nothing was sent', () => {
+			const failure = interpretFailure(
+				{
+					statusCode: 429,
+					headers: { 'retry-after': '5' },
+					body: { error: { message: '(#130429) Rate limit hit', code: 130429 } },
+				},
+				'whatsapp',
+			);
+
+			expect(failure).toMatchObject({ outcome: 'not-sent', retryable: true, retryAfterSeconds: 5 });
+		});
+
+		it('500 with a Meta body: outcome unknown, never retryable, quotes the fbtrace_id', () => {
+			const failure = interpretFailure(
+				{
+					statusCode: 500,
+					body: {
+						error: { message: '(#131000) Something went wrong', code: 131000, fbtrace_id: 'Tr4ce' },
+					},
+				},
+				'whatsapp',
+			);
+
+			expect(failure).toMatchObject({ outcome: 'unknown', retryable: false, traceId: 'Tr4ce' });
+			expect(failure.message).toMatch(/may already have been sent/);
+			expect(failure.description).toContain('Tr4ce');
+		});
+	});
 });

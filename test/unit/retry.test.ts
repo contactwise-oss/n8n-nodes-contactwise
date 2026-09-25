@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { interpretFailure } from '../../nodes/ContactWiseSms/shared/errors';
-import { nextRetryDelayMs } from '../../nodes/ContactWiseSms/shared/retry';
+import { interpretFailure } from '../../nodes/shared/errors';
+import { nextRetryDelayMs } from '../../nodes/shared/retry';
 
 // Policy from docs/contactwise-sms-api.md and TIN-13: retry only 429/503, honour Retry-After,
 // at most 3 attempts and 60 s of total waiting.
