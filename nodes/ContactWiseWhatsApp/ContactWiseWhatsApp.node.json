@@ -1,0 +1,18 @@
+{
+	"node": "@contactwise/n8n-nodes-contactwise",
+	"nodeVersion": "1.0",
+	"codexVersion": "1.0",
+	"categories": ["Communication"],
+	"resources": {
+		"credentialDocumentation": [
+			{
+				"url": "https://github.com/contactwise-oss/n8n-nodes-contactwise?tab=readme-ov-file#credentials"
+			}
+		],
+		"primaryDocumentation": [
+			{
+				"url": "https://github.com/contactwise-oss/n8n-nodes-contactwise?tab=readme-ov-file"
+			}
+		]
+	}
+}

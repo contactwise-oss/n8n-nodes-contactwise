@@ -11,7 +11,7 @@ One npm package holds every ContactWise node and a **single shared credential ty
 | Credential `ContactWise API` | `contactWiseApi` | 1 |
 | Node `ContactWise SMS` | `contactWiseSms` | 1 |
 | Node `ContactWise SMS Trigger` | `contactWiseSmsTrigger` | Later (blocked: no webhook-registration API yet, TIN-26). Renamed from `ContactWise Trigger` on 2026-09-22, before anything was published |
-| Node `ContactWise WhatsApp` | `contactWiseWhatsApp` | M3 (TIN-39 onwards) |
+| Node `ContactWise WhatsApp` | `contactWiseWhatsApp` | M3: Message → Send (TIN-39); Send Template, Media and Send and Wait to follow |
 | Node `ContactWise WhatsApp Trigger` | `contactWiseWhatsAppTrigger` | M3 (TIN-40; blocked by webhook subscriptions, TIN-34) |
 
 Internal names (node `name`, credential `name`, parameter `name`s, option `value`s) are permanent once published, because saved workflows store them.
@@ -27,14 +27,23 @@ nodes/ContactWiseSms/shared/phone.ts           # normalizeIndianMobile(): common
 nodes/shared/transport.ts                      # all nodes: base URL, credential auth, X-CW-Source header, retry loop, sanitized NodeApiError
 nodes/shared/errors.ts                         # interpretFailure(call, channel): ContactWise or Meta error → message, description, outcome (not-sent/unknown), retryable
 nodes/shared/retry.ts                          # nextRetryDelayMs(): 429/503 only, max 3 attempts, max 60 s total wait
-nodes/ContactWiseWhatsApp/                     # planned (TIN-39): ContactWise WhatsApp node, programmatic
+nodes/ContactWiseWhatsApp/ContactWiseWhatsApp.node.ts          # node description, methods, execute(); + .node.json (codex)
+nodes/ContactWiseWhatsApp/resources/message/send.ts            # Message → Send: 7 types, binary upload then send by media ID
+nodes/ContactWiseWhatsApp/resources/message/contact.ts         # contact card parameters and Meta's `contacts` body
+nodes/ContactWiseWhatsApp/methods/listSearch.ts                # 'Phone Number' resource locator list: GET /{waba-id}/phone_numbers
+nodes/ContactWiseWhatsApp/shared/recipient.ts                  # normalizeRecipientPhoneNumber(): international, 8–15 digits, digits only
 .agents/                                       # n8n's generic agent docs (scaffold-owned, don't edit)
 .github/workflows/ci.yml, publish.yml          # lint + build; tag-triggered provenance publish
 ```
 
 `package.json` has `"n8n": { "strict": true }`, which is n8n Cloud eligibility mode: the ESLint config must stay the n8n default (`n8n-node cloud-support` shows the status). Only `credentials/**`, `nodes/**` and `package.json` are compiled, so anything else (tests, fixtures) stays out of `dist/`.
 
-Code every node uses (transport, error mapping, retry policy) lives in `nodes/shared/` (TIN-38). Code only one node uses stays in that node's own `shared/` folder. The transport grows only when a node needs a new capability (query strings, multipart, binary responses, load-options and hook contexts), and it's tested at the L2 seam through that node.
+Code every node uses (transport, error mapping, retry policy) lives in `nodes/shared/` (TIN-38). Code only one node uses stays in that node's own `shared/` folder. The transport grows only when a node needs a new capability, and it's tested through that node. So far it supports:
+- requests with no body (GET)
+- native `FormData` multipart bodies, which n8n-core's request helper sends as `multipart/form-data`
+- the `ILoadOptionsFunctions` context, for dropdowns (TIN-39)
+
+Still to come: query strings and paging (TIN-41), binary responses (TIN-42), and the hook context (TIN-40).
 
 `interpretFailure()` reads two error formats:
 - **ContactWise:** `errors[]` with codes 1001 and 9000–9011, or problem+json.
@@ -81,8 +90,9 @@ These are the agreed public boundaries tests are written at. They count as "pre-
 
 1. **Pure logic in `nodes/**/shared/`** (L1). Phone normalization (input string → canonical number or rejection), error mapping (HTTP status + body → user-facing error), retry decision (status + `Retry-After` + attempt → retry/wait or give up).
 2. **Node execution** (L2). Workflow JSON with credentials goes in; output items or errors, plus the HTTP request the ContactWise API received, come out. HTTP is faked only at the network boundary (nock). Internal modules are never mocked.
+3. **Dropdown lists** (L3, agreed 2026-09-25, TIN-39). A node's `methods.listSearch` method runs inside n8n-core's real `LoadOptionsContext`, the context n8n uses for a resource locator's 'From List' mode. Credentials are served from memory, and HTTP is faked with nock. The returned results, or the error, plus the HTTP request, come out.
 
-The expected values for seam 2 come from `docs/contactwise-sms-api.md` (the request field table and the error table), never from the implementation.
+The expected values for seams 2 and 3 come from the contract docs (`docs/contactwise-sms-api.md`, `docs/contactwise-whatsapp-api.md`), never from the implementation.
 
 ### How tests are laid out
 
@@ -91,10 +101,12 @@ Tests live in a top-level `test/` folder, not next to the code. `tsconfig.json` 
 | Path | What it is |
 |---|---|
 | `test/setup.ts` | Closes the network before every test (`nock.disableNetConnect()`) |
-| `test/harness/run-node.ts` | `runNode({ node, parameters, credentialTypes, credentials, input, continueOnFail })` runs one node through n8n-core's `WorkflowExecute` and returns `{ items, error, run }` |
+| `test/harness/run-node.ts` | `runNode({ node, parameters, credentialTypes, credentials, input, inputItems, continueOnFail })` runs one node through n8n-core's `WorkflowExecute` and returns `{ items, error, run }`. `inputItems` passes full items, e.g. with binary data. `createTestWorkflow()` is the setup shared with L3 |
+| `test/harness/run-list-search.ts` | `runListSearch({ node, method, parameter, credentialTypes, credentials })` runs a list-search method in n8n-core's `LoadOptionsContext` (seam L3) |
 | `test/harness/credentials-helper.ts` | Serves credentials from memory and applies `authenticate` (function or generic `={{$credentials.x}}`) |
 | `test/harness/probe-node.ts` | Test-only node and credential that prove the harness itself |
 | `test/fixtures/contactwise-api.ts` | `interceptSend(sendScenarios.x())`: a fake API with one scenario per error-table row. It records each request body and headers. |
+| `test/fixtures/whatsapp-api.ts` | `interceptGateway(method, graphPath, whatsAppScenarios.x())`: a fake WhatsApp gateway (`/v1/waba-direct/{tenantId}/…`) with Meta-shaped responses and errors. It records each request body (multipart as raw text) and headers |
 
 Harness facts found in the spike (2026-09-22):
 - `vitest.config.mjs` aliases `n8n-workflow` to its **CommonJS** build. n8n loads community nodes with `require()`, so node code and n8n-core must share one n8n-workflow instance. With two copies, `error instanceof NodeApiError` is false for errors n8n-core creates. A harness test guards this.

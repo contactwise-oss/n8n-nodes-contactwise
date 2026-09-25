@@ -3,6 +3,7 @@ import type {
 	IDataObject,
 	IExecuteFunctions,
 	IHttpRequestMethods,
+	ILoadOptionsFunctions,
 	IN8nHttpFullResponse,
 	INode,
 	JsonObject,
@@ -28,7 +29,11 @@ export const FAILURE_CONTEXT_KEY = 'contactWiseFailure';
  * Builds the error from sanitized fields only. The raw request error is never attached:
  * it carries the request headers, including the API key.
  */
-function toNodeApiError(node: INode, failure: SendFailure, itemIndex: number): NodeApiError {
+function toNodeApiError(
+	node: INode,
+	failure: SendFailure,
+	itemIndex: number | undefined,
+): NodeApiError {
 	const error = new NodeApiError(
 		node,
 		{
@@ -39,7 +44,7 @@ function toNodeApiError(node: INode, failure: SendFailure, itemIndex: number): N
 			traceId: failure.traceId ?? null,
 		} as JsonObject,
 		{
-			message: `${failure.message} [item ${itemIndex}]`,
+			message: itemIndex === undefined ? failure.message : `${failure.message} [item ${itemIndex}]`,
 			description: failure.description,
 			httpCode: failure.httpStatus !== undefined ? String(failure.httpStatus) : undefined,
 			itemIndex,
@@ -61,11 +66,13 @@ function networkErrorCode(error: unknown): string | undefined {
  * which names what the channel sends (an SMS or a WhatsApp message).
  */
 export async function contactWiseApiRequest(
-	this: IExecuteFunctions,
+	this: IExecuteFunctions | ILoadOptionsFunctions,
 	method: IHttpRequestMethods,
 	path: string,
-	body: IDataObject,
-	itemIndex: number,
+	/** `undefined` for requests without a body, e.g. GET. */
+	body: IDataObject | FormData | undefined,
+	/** The input item, or `undefined` outside item execution (dropdowns). */
+	itemIndex: number | undefined,
 	channel: Channel,
 ): Promise<IDataObject> {
 	let attempts = 0;
@@ -81,7 +88,7 @@ export async function contactWiseApiRequest(
 				{
 					method,
 					url: `${CONTACTWISE_BASE_URL}${path}`,
-					body,
+					...(body !== undefined && { body }),
 					json: true,
 					headers: SOURCE_HEADER,
 					returnFullResponse: true,

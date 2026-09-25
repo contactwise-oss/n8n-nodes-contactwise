@@ -29,6 +29,8 @@ export interface RunNodeOptions {
 	credentials?: Record<string, ICredentialDataDecryptedObject>;
 	/** JSON of the items fed into the node. Defaults to one empty item. */
 	input?: IDataObject[];
+	/** Full items, e.g. with binary data. Takes precedence over `input`. */
+	inputItems?: INodeExecutionData[];
 	/** Mirrors the node setting "On Error: Continue". */
 	continueOnFail?: boolean;
 	typeVersion?: number;
@@ -44,11 +46,20 @@ export interface RunNodeResult {
 
 const NODE_NAME = 'Node Under Test';
 
+interface TestWorkflowOptions {
+	node: INodeType;
+	parameters: INodeParameters;
+	credentialTypes?: ICredentialType[];
+	credentials?: Record<string, ICredentialDataDecryptedObject>;
+	continueOnFail?: boolean;
+	typeVersion?: number;
+}
+
 /**
- * Executes one node inside n8n's real execution engine (n8n-core `WorkflowExecute`),
- * with credentials served from memory. HTTP must be faked with nock; the network is closed.
+ * Builds a one-node workflow and the additional data n8n-core needs, with credentials served
+ * from memory. Shared by the L2 (`runNode`) and L3 (`runListSearch`) harnesses.
  */
-export async function runNode(options: RunNodeOptions): Promise<RunNodeResult> {
+export function createTestWorkflow(options: TestWorkflowOptions) {
 	const { node: nodeType, credentialTypes = [], credentials = {} } = options;
 	const typeName = `${PACKAGE_NAME}.${nodeType.description.name}`;
 	const typeVersion =
@@ -85,12 +96,6 @@ export async function runNode(options: RunNodeOptions): Promise<RunNodeResult> {
 		settings: {},
 	});
 
-	const hooks = new ExecutionLifecycleHooks('manual', 'test-execution', mock());
-	let finalRun: IRun | undefined;
-	hooks.addHandler('workflowExecuteAfter', (run) => {
-		finalRun = run;
-	});
-
 	// Same shape n8n's own NodeTestHarness uses. Fields auto-mocked by the proxy are truthy
 	// functions, so optional hooks n8n-core checks for are explicitly set to undefined.
 	const additionalData = mock<IWorkflowExecuteAdditionalData>();
@@ -98,7 +103,6 @@ export async function runNode(options: RunNodeOptions): Promise<RunNodeResult> {
 		executionId: 'test-execution',
 		webhookWaitingBaseUrl: 'http://localhost/waiting-webhook',
 		formWaitingBaseUrl: 'http://localhost/waiting-form',
-		hooks,
 		currentNodeParameters: undefined,
 		parentCallbackManager: undefined,
 		ssrfBridge: undefined,
@@ -110,7 +114,25 @@ export async function runNode(options: RunNodeOptions): Promise<RunNodeResult> {
 		),
 	});
 
-	const input = (options.input ?? [{}]).map((json) => ({ json }));
+	return { workflow, node, additionalData };
+}
+
+/**
+ * Executes one node inside n8n's real execution engine (n8n-core `WorkflowExecute`),
+ * with credentials served from memory. HTTP must be faked with nock; the network is closed.
+ */
+export async function runNode(options: RunNodeOptions): Promise<RunNodeResult> {
+	const { workflow, node, additionalData } = createTestWorkflow(options);
+
+	const hooks = new ExecutionLifecycleHooks('manual', 'test-execution', mock());
+	let finalRun: IRun | undefined;
+	hooks.addHandler('workflowExecuteAfter', (run) => {
+		finalRun = run;
+	});
+
+	additionalData.hooks = hooks;
+
+	const input = options.inputItems ?? (options.input ?? [{}]).map((json) => ({ json }));
 	const runExecutionData = createRunExecutionData({
 		executionData: {
 			waitingExecutionSource: null,

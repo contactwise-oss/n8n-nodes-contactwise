@@ -52,7 +52,8 @@
 			"dist/credentials/ContactWiseApi.credentials.js"
 		],
 		"nodes": [
-			"dist/nodes/ContactWiseSms/ContactWiseSms.node.js"
+			"dist/nodes/ContactWiseSms/ContactWiseSms.node.js",
+			"dist/nodes/ContactWiseWhatsApp/ContactWiseWhatsApp.node.js"
 		]
 	},
 	"devDependencies": {
