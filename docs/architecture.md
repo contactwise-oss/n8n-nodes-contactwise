@@ -31,10 +31,12 @@ nodes/ContactWiseWhatsApp/ContactWiseWhatsApp.node.ts          # node descriptio
 nodes/ContactWiseWhatsApp/resources/message/common.ts          # 'Phone Number' + 'Recipient Phone Number' for every sending operation; postMessage()
 nodes/ContactWiseWhatsApp/resources/message/send.ts            # Message → Send: 7 types, binary upload then send by media ID
 nodes/ContactWiseWhatsApp/resources/message/sendTemplate.ts    # Message → Send Template: 'Template' locator, header/body/button components
+nodes/ContactWiseWhatsApp/resources/message/sendAndWait.ts     # Message → Send and Wait for Response: message + signed links, wait, resume webhook
 nodes/ContactWiseWhatsApp/resources/message/contact.ts         # contact card parameters and Meta's `contacts` body
 nodes/ContactWiseWhatsApp/methods/listSearch.ts                # resource locator lists: phone numbers; approved templates, paged by Meta's cursor
 nodes/ContactWiseWhatsApp/shared/recipient.ts                  # normalizeRecipientPhoneNumber(): international, 8–15 digits, digits only
 nodes/ContactWiseWhatsApp/shared/currencies.ts                 # active ISO 4217 codes, inlined (no currency-codes package)
+nodes/ContactWiseWhatsApp/shared/responsePage.ts               # Send and Wait pages: confirm, form, recorded; escaping, form parsing, bot check
 .agents/                                       # n8n's generic agent docs (scaffold-owned, don't edit)
 .github/workflows/ci.yml, publish.yml          # lint + build; tag-triggered provenance publish
 ```
@@ -95,6 +97,8 @@ These are the agreed public boundaries tests are written at. They count as "pre-
 2. **Node execution** (L2). Workflow JSON with credentials goes in; output items or errors, plus the HTTP request the ContactWise API received, come out. HTTP is faked only at the network boundary (nock). Internal modules are never mocked.
 3. **Dropdown lists** (L3, agreed 2026-09-25, TIN-39). A node's `methods.listSearch` method runs inside n8n-core's real `LoadOptionsContext`, the context n8n uses for a resource locator's 'From List' mode. Credentials are served from memory, and HTTP is faked with nock. The returned results, or the error, plus the HTTP request, come out.
 
+4. **Webhooks** (L4, agreed 2026-09-25, TIN-43). A node's `webhook()` runs inside n8n-core's real `WebhookContext` with a hand-built fake request and response. That's how n8n calls a resume URL or a trigger's webhook. The value `webhook()` returns (resume data, the response for n8n to send) comes out, plus what the node wrote to the response itself (status, headers, HTML).
+
 The expected values for seams 2 and 3 come from the contract docs (`docs/contactwise-sms-api.md`, `docs/contactwise-whatsapp-api.md`), never from the implementation.
 
 ### How tests are laid out
@@ -105,6 +109,7 @@ Tests live in a top-level `test/` folder, not next to the code. `tsconfig.json` 
 |---|---|
 | `test/setup.ts` | Closes the network before every test (`nock.disableNetConnect()`) |
 | `test/harness/run-node.ts` | `runNode({ node, parameters, credentialTypes, credentials, input, inputItems, continueOnFail })` runs one node through n8n-core's `WorkflowExecute` and returns `{ items, error, run }`. `inputItems` passes full items, e.g. with binary data. `createTestWorkflow()` is the setup shared with L3 |
+| `test/harness/run-webhook.ts` | `runWebhook({ node, parameters, method, query, body, headers })` runs `webhook()` in n8n-core's `WebhookContext` (seam L4) and returns `{ result, response }` |
 | `test/harness/run-list-search.ts` | `runListSearch({ node, method, parameter, credentialTypes, credentials })` runs a list-search method in n8n-core's `LoadOptionsContext` (seam L3) |
 | `test/harness/credentials-helper.ts` | Serves credentials from memory and applies `authenticate` (function or generic `={{$credentials.x}}`) |
 | `test/harness/probe-node.ts` | Test-only node and credential that prove the harness itself |
@@ -124,7 +129,9 @@ Harness facts found in the spike (2026-09-22):
 | Node style for `ContactWise SMS` | **Programmatic** (2026-09-22) | Needed for selective retry (429/503 only, honouring `Retry-After`) and direct unit testing of `execute()`, and it keeps full versioning available. The Trigger must be programmatic anyway. Trade-off accepted: more code than declarative, which n8n calls the faster route to approval. |
 | Node style for `ContactWise WhatsApp` and its trigger | **Programmatic** (TIN-30, 2026-09-22) | Same reasons as SMS: selective retry and full versioning. Trigger nodes must be programmatic anyway. |
 | WhatsApp API contract | **`docs/contactwise-whatsapp-api.md`** (TIN-37, 2026-09-25) | The gateway is a transparent proxy over Meta's Graph API v23.0 at `/v1/waba-direct/{tenantId}/{**catch-all}`. Request, response and error shapes are Meta's. |
-| WhatsApp Send and Wait | **Rebuilt on `n8n-workflow` primitives** (TIN-30, 2026-09-22) | A community node can't import nodes-base's `sendAndWait` helpers. The rebuild uses `getSignedResumeUrl`, `putExecutionToWait`, `WAIT_INDEFINITELY` and `SEND_AND_WAIT_OPERATION`. A spike comes first (TIN-43). |
+| WhatsApp Send and Wait | **Rebuilt on `n8n-workflow` primitives** (TIN-30, 2026-09-22) | A community node can't import nodes-base's `sendAndWait` helpers. The rebuild uses `getSignedResumeUrl`, `putExecutionToWait`, `WAIT_INDEFINITELY` and `SEND_AND_WAIT_OPERATION`. |
+| Send and Wait response pages | **The node serves its own pages** (TIN-43 spike, 2026-09-25) | A webhook can call n8n's `form-trigger` view, but its data comes from nodes-base helpers a community node can't import, and the sandboxing CSP header comes from `n8n-core`. So `shared/responsePage.ts` renders self-contained pages: HTML-escaped, with no JavaScript or external assets, served with a strict CSP. Custom Form has text, textarea, number, email, date, dropdown and checkbox fields, with no file uploads. |
+| Answering a Send and Wait link | **GET shows, POST records** (TIN-43, 2026-09-25) | Opening a link only shows a page. The answer is recorded, and the workflow resumed, only when the page's form is submitted, so link previews (WhatsApp, Slack, Teams) can't approve anything. A POST from a known bot user agent is ignored too. This costs the recipient one extra tap compared with the official node. |
 | Test depth | **Vitest, L1 + L2** (2026-09-22) | L1: unit tests of pure logic (normalization, error mapping, retry decisions). L2: the node executed through `n8n-core`'s execution engine, with HTTP intercepted by nock. No automated real-n8n E2E; the UI check is manual via `npm run dev` / `dev:docker`. Real-API checks are manual on the test tenant (TIN-15). |
 | L2 spike outcome | **Kept** (TIN-19, 2026-09-22) | `WorkflowExecute`, `ExecutionLifecycleHooks` and `Credentials` are public `n8n-core` exports, so there are no deep imports into its internals. Node and credential classes are registered directly (no build needed). `n8n-core` 2.40.3 and `n8n-workflow` 2.40.1 are pinned devDependencies that must move together. |
 | Agent guardrails | **Block publishing, block runtime deps** (2026-09-22) | Enforced by Claude Code hooks. CI also checks that `dependencies` is empty. |

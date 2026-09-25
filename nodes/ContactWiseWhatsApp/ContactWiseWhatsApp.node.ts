@@ -5,11 +5,22 @@ import type {
 	INodeTypeDescription,
 	JsonObject,
 } from 'n8n-workflow';
-import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workflow';
+import {
+	NodeApiError,
+	NodeConnectionTypes,
+	NodeOperationError,
+	SEND_AND_WAIT_OPERATION,
+} from 'n8n-workflow';
 
 import { getPhoneNumbers, getTemplates } from './methods/listSearch';
 import { senderAndRecipientDescription } from './resources/message/common';
 import { send, sendDescription } from './resources/message/send';
+import {
+	sendAndWait,
+	sendAndWaitDescription,
+	sendAndWaitWebhook,
+	sendAndWaitWebhooks,
+} from './resources/message/sendAndWait';
 import { sendTemplate, sendTemplateDescription } from './resources/message/sendTemplate';
 import type { SendFailure } from '../shared/errors';
 import { FAILURE_CONTEXT_KEY } from '../shared/transport';
@@ -33,6 +44,9 @@ export class ContactWiseWhatsApp implements INodeType {
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
 		usableAsTool: true,
+		webhooks: sendAndWaitWebhooks,
+		waitingNodeTooltip:
+			'={{ $parameter.operation === "sendAndWait" ? "The workflow continues after the recipient responds, or when the wait limit is reached" : "" }}',
 		credentials: [
 			{
 				name: 'contactWiseApi',
@@ -77,14 +91,24 @@ export class ContactWiseWhatsApp implements INodeType {
 							'Send an approved template, the only kind of message allowed outside the 24-hour window',
 						action: 'Send template message',
 					},
+					{
+						name: 'Send and Wait for Response',
+						value: SEND_AND_WAIT_OPERATION,
+						description:
+							'Send a message with a link to respond, and pause the workflow until the recipient answers',
+						action: 'Send message and wait for response',
+					},
 				],
 				default: 'send',
 			},
 			...senderAndRecipientDescription,
 			...sendDescription,
 			...sendTemplateDescription,
+			...sendAndWaitDescription,
 		],
 	};
+
+	webhook = sendAndWaitWebhook;
 
 	methods = {
 		listSearch: { getPhoneNumbers, getTemplates },
@@ -94,6 +118,10 @@ export class ContactWiseWhatsApp implements INodeType {
 		const items = this.getInputData();
 		const returnData: INodeExecutionData[] = [];
 		const operation = this.getNodeParameter('operation', 0) as string;
+		if (operation === SEND_AND_WAIT_OPERATION) {
+			await sendAndWait.call(this);
+			return [items];
+		}
 		const run = operation === 'sendTemplate' ? sendTemplate : send;
 
 		for (let i = 0; i < items.length; i++) {

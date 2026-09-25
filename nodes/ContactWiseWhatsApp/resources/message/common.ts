@@ -1,11 +1,11 @@
-import { NodeOperationError } from 'n8n-workflow';
+import { NodeOperationError, SEND_AND_WAIT_OPERATION } from 'n8n-workflow';
 import type { IDataObject, IExecuteFunctions, INodeProperties } from 'n8n-workflow';
 
 import { normalizeRecipientPhoneNumber } from '../../shared/recipient';
 import { contactWiseApiRequest } from '../../../shared/transport';
 
 /** Operations of the Message resource that send a message. */
-export const SENDING_OPERATIONS = ['send', 'sendTemplate'];
+export const SENDING_OPERATIONS = ['send', 'sendTemplate', SEND_AND_WAIT_OPERATION];
 
 /**
  * 'Phone Number' and 'Recipient Phone Number', shared by every sending operation under the
