@@ -64,9 +64,9 @@ Multipart form: `messaging_product=whatsapp`, `type=<mime type>`, `file=<binary>
 
 **200:** `{ "id": "<media-id>" }`.
 
-### Media metadata and delete: `GET` / `DELETE /{media-id}` (TIN-42)
+### Media metadata and delete: `GET` / `DELETE /{media-id}` (TIN-42; Download is TIN-55)
 
-- `GET` 200: `{ "messaging_product", "url", "mime_type", "sha256", "file_size", "id" }`. The `url` needs Meta's token, which the customer doesn't have. So **Media → Download needs the streaming route in TIN-33** and doesn't return this URL.
+- `GET` 200: `{ "messaging_product", "url", "mime_type", "sha256", "file_size", "id" }`. The `url` needs Meta's token, which the customer doesn't have. So **Media → Download (TIN-55) needs the streaming route in TIN-33** and doesn't return this URL.
 - `DELETE` 200: `{ "success": true }`.
 
 ### Not built yet (API team)

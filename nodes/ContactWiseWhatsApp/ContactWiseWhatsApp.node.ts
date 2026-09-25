@@ -13,6 +13,7 @@ import {
 } from 'n8n-workflow';
 
 import { getPhoneNumbers, getTemplates } from './methods/listSearch';
+import { deleteMedia, mediaDescription, mediaOperations, upload } from './resources/media/media';
 import { senderAndRecipientDescription } from './resources/message/common';
 import { send, sendDescription } from './resources/message/send';
 import {
@@ -61,6 +62,10 @@ export class ContactWiseWhatsApp implements INodeType {
 				noDataExpression: true,
 				options: [
 					{
+						name: 'Media',
+						value: 'media',
+					},
+					{
 						name: 'Message',
 						value: 'message',
 					},
@@ -101,10 +106,12 @@ export class ContactWiseWhatsApp implements INodeType {
 				],
 				default: 'send',
 			},
+			mediaOperations,
 			...senderAndRecipientDescription,
 			...sendDescription,
 			...sendTemplateDescription,
 			...sendAndWaitDescription,
+			...mediaDescription,
 		],
 	};
 
@@ -122,7 +129,7 @@ export class ContactWiseWhatsApp implements INodeType {
 			await sendAndWait.call(this);
 			return [items];
 		}
-		const run = operation === 'sendTemplate' ? sendTemplate : send;
+		const run = { send, sendTemplate, upload, delete: deleteMedia }[operation] ?? send;
 
 		for (let i = 0; i < items.length; i++) {
 			try {

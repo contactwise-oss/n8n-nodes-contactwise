@@ -33,7 +33,10 @@ export const senderAndRecipientDescription: INodeProperties[] = [
 				placeholder: 'e.g. 100000000000002',
 			},
 		],
-		displayOptions: { show: { resource: ['message'], operation: SENDING_OPERATIONS } },
+		// Also the number a media file is uploaded for. Operation values are unique across resources.
+		displayOptions: {
+			show: { resource: ['message', 'media'], operation: [...SENDING_OPERATIONS, 'upload'] },
+		},
 	},
 	{
 		displayName: 'Recipient Phone Number',
@@ -100,4 +103,36 @@ export async function postMessage(
 		itemIndex,
 		'whatsapp',
 	);
+}
+
+/** Uploads the item's binary file to WhatsApp and returns the media ID Meta assigns. */
+export async function uploadBinaryMedia(
+	this: IExecuteFunctions,
+	itemIndex: number,
+	tenantId: string,
+	phoneNumberId: string,
+): Promise<string> {
+	const propertyName = this.getNodeParameter('binaryPropertyName', itemIndex) as string;
+	const binary = this.helpers.assertBinaryData(itemIndex, propertyName);
+	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, propertyName);
+
+	const form = new FormData();
+	form.append('messaging_product', 'whatsapp');
+	form.append('type', binary.mimeType);
+	form.append(
+		'file',
+		new Blob([new Uint8Array(buffer)], { type: binary.mimeType }),
+		binary.fileName ?? 'file',
+	);
+
+	const response = await contactWiseApiRequest.call(
+		this,
+		'POST',
+		`/v1/waba-direct/${tenantId}/${phoneNumberId}/media`,
+		form,
+		itemIndex,
+		// An upload's failure wording names the file, even when it's the first step of a send.
+		'whatsapp-upload',
+	);
+	return response.id as string;
 }

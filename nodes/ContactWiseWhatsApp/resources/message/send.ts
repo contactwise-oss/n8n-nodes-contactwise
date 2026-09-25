@@ -1,8 +1,7 @@
 import type { IDataObject, IExecuteFunctions, INodeProperties } from 'n8n-workflow';
 
-import { postMessage, resolveSender } from './common';
+import { postMessage, resolveSender, uploadBinaryMedia } from './common';
 import { contactContent, contactDescription } from './contact';
-import { contactWiseApiRequest } from '../../../shared/transport';
 
 const showForSend = { show: { resource: ['message'], operation: ['send'] } };
 const showForType = (types: string[]) => ({
@@ -171,37 +170,6 @@ interface AdditionalFields {
 	mediaFilename?: string;
 	locationName?: string;
 	locationAddress?: string;
-}
-
-/** Uploads the item's binary file to WhatsApp and returns the media ID Meta assigns. */
-async function uploadBinaryMedia(
-	this: IExecuteFunctions,
-	itemIndex: number,
-	tenantId: string,
-	phoneNumberId: string,
-): Promise<string> {
-	const propertyName = this.getNodeParameter('binaryPropertyName', itemIndex) as string;
-	const binary = this.helpers.assertBinaryData(itemIndex, propertyName);
-	const buffer = await this.helpers.getBinaryDataBuffer(itemIndex, propertyName);
-
-	const form = new FormData();
-	form.append('messaging_product', 'whatsapp');
-	form.append('type', binary.mimeType);
-	form.append(
-		'file',
-		new Blob([new Uint8Array(buffer)], { type: binary.mimeType }),
-		binary.fileName ?? 'file',
-	);
-
-	const response = await contactWiseApiRequest.call(
-		this,
-		'POST',
-		`/v1/waba-direct/${tenantId}/${phoneNumberId}/media`,
-		form,
-		itemIndex,
-		'whatsapp',
-	);
-	return response.id as string;
 }
 
 /** The type-specific object Meta expects under the message's `type` key. */

@@ -11,7 +11,7 @@ One npm package holds every ContactWise node and a **single shared credential ty
 | Credential `ContactWise API` | `contactWiseApi` | 1 |
 | Node `ContactWise SMS` | `contactWiseSms` | 1 |
 | Node `ContactWise SMS Trigger` | `contactWiseSmsTrigger` | Later (blocked: no webhook-registration API yet, TIN-26). Renamed from `ContactWise Trigger` on 2026-09-22, before anything was published |
-| Node `ContactWise WhatsApp` | `contactWiseWhatsApp` | M3: Message → Send (TIN-39) and Send Template (TIN-41); Media and Send and Wait to follow |
+| Node `ContactWise WhatsApp` | `contactWiseWhatsApp` | M3: Message → Send (TIN-39), Send Template (TIN-41), Send and Wait (TIN-43); Media → Upload and Delete (TIN-42). Media → Download to follow (TIN-55) |
 | Node `ContactWise WhatsApp Trigger` | `contactWiseWhatsAppTrigger` | M3 (TIN-40; blocked by webhook subscriptions, TIN-34) |
 
 Internal names (node `name`, credential `name`, parameter `name`s, option `value`s) are permanent once published, because saved workflows store them.
@@ -28,11 +28,12 @@ nodes/shared/transport.ts                      # all nodes: base URL, credential
 nodes/shared/errors.ts                         # interpretFailure(call, channel): ContactWise or Meta error → message, description, outcome (not-sent/unknown), retryable
 nodes/shared/retry.ts                          # nextRetryDelayMs(): 429/503 only, max 3 attempts, max 60 s total wait
 nodes/ContactWiseWhatsApp/ContactWiseWhatsApp.node.ts          # node description, methods, execute(); + .node.json (codex)
-nodes/ContactWiseWhatsApp/resources/message/common.ts          # 'Phone Number' + 'Recipient Phone Number' for every sending operation; postMessage()
+nodes/ContactWiseWhatsApp/resources/message/common.ts          # 'Phone Number' + 'Recipient Phone Number' for every sending operation; postMessage(), uploadBinaryMedia()
 nodes/ContactWiseWhatsApp/resources/message/send.ts            # Message → Send: 7 types, binary upload then send by media ID
 nodes/ContactWiseWhatsApp/resources/message/sendTemplate.ts    # Message → Send Template: 'Template' locator, header/body/button components
 nodes/ContactWiseWhatsApp/resources/message/sendAndWait.ts     # Message → Send and Wait for Response: message + signed links, wait, resume webhook
 nodes/ContactWiseWhatsApp/resources/message/contact.ts         # contact card parameters and Meta's `contacts` body
+nodes/ContactWiseWhatsApp/resources/media/media.ts             # Media → Upload (multipart, returns the media ID) and Delete; Download is TIN-55
 nodes/ContactWiseWhatsApp/methods/listSearch.ts                # resource locator lists: phone numbers; approved templates, paged by Meta's cursor
 nodes/ContactWiseWhatsApp/shared/recipient.ts                  # normalizeRecipientPhoneNumber(): international, 8–15 digits, digits only
 nodes/ContactWiseWhatsApp/shared/currencies.ts                 # active ISO 4217 codes, inlined (no currency-codes package)
@@ -54,7 +55,11 @@ Query strings are built into the request path with `URLSearchParams` (TIN-41), s
 - **ContactWise:** `errors[]` with codes 1001 and 9000–9011, or problem+json.
 - **Meta:** the Graph API envelope `{ error: { message, code, error_data.details, fbtrace_id } }`, which the WhatsApp gateway passes through unchanged. The `(#code)` prefix is stripped, `fbtrace_id` becomes the trace ID, and codes 131047, 130429, 131056, 131026 and 132xxx get specific fixes.
 
-The status rules come before either format: 429/503 are retryable, and 5xx, 502/504 and timeouts are an unknown outcome that's never retried. The `channel` argument (`sms` or `whatsapp`) names what was sent in every message, so WhatsApp errors never say "SMS".
+The status rules come before either format: 429/503 are retryable, and 5xx, 502/504 and timeouts are an unknown outcome that's never retried. The `channel` argument names what the call did, in every message:
+- `sms` and `whatsapp` for sends, so WhatsApp errors never say "SMS"
+- `whatsapp-upload` and `whatsapp-delete` for media (TIN-42), so an upload or delete never reads as "sent". For example: "The media file may already have been uploaded", "Nothing was deleted".
+
+A binary media upload inside Message → Send uses `whatsapp-upload` for its upload step.
 
 ## Credential
 

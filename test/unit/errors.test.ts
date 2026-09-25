@@ -290,4 +290,59 @@ describe('interpretFailure', () => {
 			expect(failure.description).toContain('Tr4ce');
 		});
 	});
+
+	// Media → Upload and Delete (TIN-42) send no message, so their wording never says one was sent.
+	describe.each([
+		[
+			'whatsapp-upload',
+			{
+				unavailable: "ContactWise can't upload media right now",
+				timeout:
+					'The media file may already have been uploaded: the connection to ContactWise failed',
+				rateLimited: 'ContactWise is limiting how fast media files can be uploaded',
+				meta: 'WhatsApp rejected the upload: Invalid parameter',
+				nothingDone: 'Nothing was uploaded.',
+			},
+		],
+		[
+			'whatsapp-delete',
+			{
+				unavailable: "ContactWise can't delete media right now",
+				timeout:
+					'The media file may already have been deleted: the connection to ContactWise failed',
+				rateLimited: 'ContactWise is limiting how fast media files can be deleted',
+				meta: 'WhatsApp rejected the delete request: Invalid parameter',
+				nothingDone: 'Nothing was deleted.',
+			},
+		],
+	] as const)('%s channel', (channel, expected) => {
+		it('503: says the media action is unavailable, not the messaging service', () => {
+			expect(interpretFailure({ statusCode: 503, body: {} }, channel).message).toBe(
+				expected.unavailable,
+			);
+		});
+
+		it('timeout: names the media file and what may have happened to it', () => {
+			const failure = interpretFailure({ networkError: { code: 'ETIMEDOUT' } }, channel);
+
+			expect(failure.message).toBe(expected.timeout);
+			expect(failure.description).not.toMatch(/sent|recipient|SMS/i);
+		});
+
+		it('429 and Meta rejections: say what was not done, never "sent"', () => {
+			const limited = interpretFailure({ statusCode: 429, body: {} }, channel);
+			const rejected = interpretFailure(
+				{ statusCode: 400, body: { error: { message: '(#100) Invalid parameter', code: 100 } } },
+				channel,
+			);
+
+			expect(limited.message).toBe(expected.rateLimited);
+			expect(limited.description.startsWith(expected.nothingDone)).toBe(true);
+			expect(rejected.message).toBe(expected.meta);
+			expect(rejected.description.startsWith(expected.nothingDone)).toBe(true);
+			expect(`${rejected.description} ${limited.description}`).not.toMatch(
+				/sent|WhatsApp message/i,
+			);
+		});
+	});
 });

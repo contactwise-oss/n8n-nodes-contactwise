@@ -114,8 +114,8 @@ function metaErrorFrom(body: Record<string, unknown> | undefined): MetaError | u
 	};
 }
 
-/** What to do for the Meta codes users hit most. Anything else gets the general fix. */
-function metaFixFor(code: number | undefined): string {
+/** What to do for the Meta codes users hit most. Anything else gets the channel's general fix. */
+function metaFixFor(code: number | undefined, generalFix: string): string {
 	switch (code) {
 		case 131047:
 			return 'More than 24 hours have passed since the recipient last messaged you, so only a template can be sent. Send an approved template instead.';
@@ -129,7 +129,7 @@ function metaFixFor(code: number | undefined): string {
 			if (code !== undefined && code >= 132000 && code < 133000) {
 				return 'Check that the template exists in this language, is approved and active, and that the parameters match it.';
 			}
-			return 'Check the WhatsApp message and recipient, then try again.';
+			return generalFix;
 	}
 }
 
@@ -137,22 +137,81 @@ function supportTraceHint(traceId: string | undefined): string {
 	return traceId ? ` If you contact ContactWise support, quote trace ID ${traceId}.` : '';
 }
 
-export type Channel = 'sms' | 'whatsapp';
+/** What a call does: send an SMS or WhatsApp message, or upload or delete a WhatsApp media file. */
+export type Channel = 'sms' | 'whatsapp' | 'whatsapp-upload' | 'whatsapp-delete';
 
-/** How each channel names what it sends, so shared wording never says "SMS" for WhatsApp. */
-const CHANNEL_WORDING: Record<Channel, { message: string; theMessage: string; messages: string }> =
-	{
-		sms: { message: 'SMS', theMessage: 'The SMS', messages: 'SMS' },
-		whatsapp: {
-			message: 'WhatsApp message',
-			theMessage: 'The WhatsApp message',
-			messages: 'WhatsApp messages',
-		},
-	};
-
-function unknownOutcomeAdvice(channel: Channel): string {
-	return `Don't send this item again automatically: the recipient may get the ${CHANNEL_WORDING[channel].message} twice. Check delivery reports first.`;
+interface Wording {
+	/** "The SMS may already have been …" */
+	theThing: string;
+	/** "limiting how fast … can be …" */
+	things: string;
+	/** Past participle: "sent", "uploaded". */
+	done: string;
+	/** "ContactWise rejected …", "ContactWise didn't accept …" */
+	request: string;
+	/** "WhatsApp rejected …" */
+	metaRequest: string;
+	/** Opens every not-sent description. */
+	nothingDone: string;
+	/** The 503 message. */
+	unavailable: string;
+	/** What to do when the outcome is unknown. */
+	unknownAdvice: string;
+	/** The fix for a Meta code with no specific one. */
+	metaGeneralFix: string;
 }
+
+const SEND_ADVICE = (thing: string) =>
+	`Don't send this item again automatically: the recipient may get the ${thing} twice. Check delivery reports first.`;
+
+/** How each channel names what it does, so an upload never reads as "sent" and WhatsApp never as "SMS". */
+const CHANNEL_WORDING: Record<Channel, Wording> = {
+	sms: {
+		theThing: 'The SMS',
+		things: 'SMS',
+		done: 'sent',
+		request: 'the SMS',
+		metaRequest: 'the message',
+		nothingDone: 'Nothing was sent.',
+		unavailable: 'The ContactWise messaging service is unavailable',
+		unknownAdvice: SEND_ADVICE('SMS'),
+		metaGeneralFix: GENERAL_FIX,
+	},
+	whatsapp: {
+		theThing: 'The WhatsApp message',
+		things: 'WhatsApp messages',
+		done: 'sent',
+		request: 'the WhatsApp message',
+		metaRequest: 'the message',
+		nothingDone: 'Nothing was sent.',
+		unavailable: 'The ContactWise messaging service is unavailable',
+		unknownAdvice: SEND_ADVICE('WhatsApp message'),
+		metaGeneralFix: 'Check the WhatsApp message and recipient, then try again.',
+	},
+	'whatsapp-upload': {
+		theThing: 'The media file',
+		things: 'media files',
+		done: 'uploaded',
+		request: 'the upload',
+		metaRequest: 'the upload',
+		nothingDone: 'Nothing was uploaded.',
+		unavailable: "ContactWise can't upload media right now",
+		unknownAdvice:
+			"Don't upload this file again automatically: WhatsApp may store it twice. Run the workflow again only if you need a new media ID.",
+		metaGeneralFix: "Check that WhatsApp supports the file's type and size, then try again.",
+	},
+	'whatsapp-delete': {
+		theThing: 'The media file',
+		things: 'media files',
+		done: 'deleted',
+		request: 'the delete request',
+		metaRequest: 'the delete request',
+		nothingDone: 'Nothing was deleted.',
+		unavailable: "ContactWise can't delete media right now",
+		unknownAdvice: 'Check whether the media file still exists before trying again.',
+		metaGeneralFix: "Check the 'Media ID', then try again.",
+	},
+};
 
 export function interpretFailure(call: FailedCall, channel: Channel = 'sms'): SendFailure {
 	const wording = CHANNEL_WORDING[channel];
@@ -174,8 +233,8 @@ export function interpretFailure(call: FailedCall, channel: Channel = 'sms'): Se
 			outcome: 'unknown',
 			retryable: false,
 			messages: call.networkError?.message ? [call.networkError.message] : [],
-			message: `${wording.theMessage} may already have been sent: the connection to ContactWise failed`,
-			description: unknownOutcomeAdvice(channel),
+			message: `${wording.theThing} may already have been ${wording.done}: the connection to ContactWise failed`,
+			description: wording.unknownAdvice,
 		};
 	}
 
@@ -185,8 +244,8 @@ export function interpretFailure(call: FailedCall, channel: Channel = 'sms'): Se
 			outcome: 'unknown',
 			retryable: false,
 			messages: typeof body?.error === 'string' ? [body.error] : [],
-			message: `${wording.theMessage} may already have been sent: ContactWise returned an unexpected response`,
-			description: `${unknownOutcomeAdvice(channel)}${supportTraceHint(traceId)}`,
+			message: `${wording.theThing} may already have been ${wording.done}: ContactWise returned an unexpected response`,
+			description: `${wording.unknownAdvice}${supportTraceHint(traceId)}`,
 		};
 	}
 
@@ -199,9 +258,9 @@ export function interpretFailure(call: FailedCall, channel: Channel = 'sms'): Se
 			messages: (errorList ?? []).map((entry) => entry.message ?? String(entry.code)),
 			message:
 				statusCode === 429
-					? `ContactWise is limiting how fast ${wording.messages} can be sent`
-					: 'The ContactWise messaging service is unavailable',
-			description: 'Nothing was sent. Wait a few minutes and run the workflow again.',
+					? `ContactWise is limiting how fast ${wording.things} can be ${wording.done}`
+					: wording.unavailable,
+			description: `${wording.nothingDone} Wait a few minutes and run the workflow again.`,
 		};
 	}
 
@@ -213,8 +272,8 @@ export function interpretFailure(call: FailedCall, channel: Channel = 'sms'): Se
 			outcome: 'not-sent',
 			retryable: false,
 			messages: [meta.message],
-			message: `WhatsApp rejected the message: ${meta.message}`,
-			description: `Nothing was sent.${detail} ${metaFixFor(meta.code)}${supportTraceHint(traceId)}`,
+			message: `WhatsApp rejected ${wording.metaRequest}: ${meta.message}`,
+			description: `${wording.nothingDone}${detail} ${metaFixFor(meta.code, wording.metaGeneralFix)}${supportTraceHint(traceId)}`,
 		};
 	}
 
@@ -225,8 +284,7 @@ export function interpretFailure(call: FailedCall, channel: Channel = 'sms'): Se
 			retryable: false,
 			messages: [],
 			message: "The 'API Key' is invalid, or it doesn't belong to this tenant",
-			description:
-				"Nothing was sent. Check the 'API Key' and 'Tenant ID' in the ContactWise API credential.",
+			description: `${wording.nothingDone} Check the 'API Key' and 'Tenant ID' in the ContactWise API credential.`,
 		};
 	}
 
@@ -237,8 +295,8 @@ export function interpretFailure(call: FailedCall, channel: Channel = 'sms'): Se
 			outcome: 'not-sent',
 			retryable: false,
 			messages,
-			message: `ContactWise rejected the ${wording.message}: ${messages.join('; ')}`,
-			description: `Nothing was sent. ${fixesFor(codes)}`,
+			message: `ContactWise rejected ${wording.request}: ${messages.join('; ')}`,
+			description: `${wording.nothingDone} ${fixesFor(codes)}`,
 		};
 	}
 
@@ -254,8 +312,7 @@ export function interpretFailure(call: FailedCall, channel: Channel = 'sms'): Se
 			retryable: false,
 			messages,
 			message: `ContactWise couldn't read the request: ${messages.join('; ')}`,
-			description:
-				'Nothing was sent. Check that every field resolves to plain text, not an object or list.',
+			description: `${wording.nothingDone} Check that every field resolves to plain text, not an object or list.`,
 		};
 	}
 
@@ -264,7 +321,7 @@ export function interpretFailure(call: FailedCall, channel: Channel = 'sms'): Se
 		outcome: 'not-sent',
 		retryable: false,
 		messages: [],
-		message: `ContactWise didn't accept the ${wording.message} (status ${statusCode})`,
-		description: 'Nothing was sent. Check the node settings and the ContactWise API credential.',
+		message: `ContactWise didn't accept ${wording.request} (status ${statusCode})`,
+		description: `${wording.nothingDone} Check the node settings and the ContactWise API credential.`,
 	};
 }
