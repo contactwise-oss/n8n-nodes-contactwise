@@ -124,6 +124,7 @@ Tests live in a top-level `test/` folder, not next to the code. `tsconfig.json` 
 Harness facts found in the spike (2026-09-22):
 - `vitest.config.mjs` aliases `n8n-workflow` to its **CommonJS** build. n8n loads community nodes with `require()`, so node code and n8n-core must share one n8n-workflow instance. With two copies, `error instanceof NodeApiError` is false for errors n8n-core creates. A harness test guards this.
 - `npm run lint:fix` can't keep node properties it doesn't understand. When it reorders `fixedCollection` values, it drops `displayOptions`, `typeOptions` and references to shared `values` arrays (found on TIN-41, 2026-09-25). Reorder those by hand instead.
+- The lint rule `node-param-fixed-collection-type-unsorted-items` wants `fixedCollection` values in alphabetical order. That puts a selector such as Send Template's component **Type** below the fields it controls. Send Template keeps Type first with a one-line `eslint-disable-next-line` that states the reason, as n8n's linter docs allow (TIN-56, 2026-09-26). The ESLint config stays n8n's default.
 - n8n's defaults are wrong for SMS and must be overridden by our error mapping. A 500 surfaces as "The service was not able to process your request". A timeout says "consider setting the 'Retry on Fail' option", but retrying an SMS after a timeout can send it twice.
 - `nock.replyWithError` needs an `Error` instance. A plain object makes the request hang.
 

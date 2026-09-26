@@ -6,6 +6,7 @@ import {
 	interceptGateway,
 	whatsAppScenarios,
 } from '../fixtures/whatsapp-api';
+import { sendTemplateDescription } from '../../nodes/ContactWiseWhatsApp/resources/message/sendTemplate';
 import { runWhatsApp } from './whatsapp-node';
 
 // Expected bodies come from docs/contactwise-whatsapp-api.md and Meta's Cloud API reference for
@@ -30,6 +31,13 @@ function templateOf(body: unknown) {
 }
 
 describe('ContactWise WhatsApp: Message → Send Template', () => {
+	it("shows a component's Type before the fields that depend on it", () => {
+		const components = sendTemplateDescription.find(({ name }) => name === 'components');
+		const component = (components?.options as Array<{ values: Array<{ name: string }> }>)[0];
+
+		expect(component.values[0].name).toBe('type');
+	});
+
 	it('sends the template name and language code, with no components when none are set', async () => {
 		const { requests } = interceptGateway(
 			'post',
