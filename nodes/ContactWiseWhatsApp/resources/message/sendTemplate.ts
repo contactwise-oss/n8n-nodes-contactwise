@@ -173,7 +173,8 @@ export const sendTemplateDescription: INodeProperties[] = [
 							{
 								name: 'URL',
 								value: 'url',
-								description: "The 'Button Value' is added to the end of the button's URL",
+								description:
+									"The 'Button Value' is added to the end of the button's URL. An authentication template's Copy Code button is also a URL button, so use the same code you entered in the Body component.",
 							},
 						],
 						default: 'quick_reply',
@@ -184,7 +185,7 @@ export const sendTemplateDescription: INodeProperties[] = [
 						name: 'buttonValue',
 						type: 'string',
 						default: '',
-						placeholder: 'e.g. CONFIRM_42',
+						placeholder: 'e.g. CONFIRM_42 or 123456',
 						displayOptions: { show: { type: ['button'] } },
 					},
 					{
