@@ -66,12 +66,42 @@ Multipart form: `messaging_product=whatsapp`, `type=<mime type>`, `file=<binary>
 
 ### Media metadata and delete: `GET` / `DELETE /{media-id}` (TIN-42; Download is TIN-55)
 
-- `GET` 200: `{ "messaging_product", "url", "mime_type", "sha256", "file_size", "id" }`. The `url` needs Meta's token, which the customer doesn't have. So **Media → Download (TIN-55) needs the streaming route in TIN-33** and doesn't return this URL.
+- `GET` 200: `{ "messaging_product", "url", "mime_type", "sha256", "file_size", "id" }`. The `url` needs Meta's token, which the customer doesn't have. So Media → Download uses the route below, and the node never calls this `GET`.
 - `DELETE` 200: `{ "success": true }`.
+
+### Download media: `GET /v1/whatsapp/{tenantId}/media/{mediaId}/content` (TIN-33, TIN-55)
+
+Confirmed by the API team on 2026-09-26 (TIN-33). This is a gateway route, **not** under `/v1/waba-direct/`: the gateway looks up Meta's media URL with the tenant's token and streams the file back.
+
+- **Auth:** the same `X-CW-Api-Key` header. A bad key and an unknown tenant both get 401 `{ "error": "Invalid API key." }`.
+- **200:** the file's bytes, with these headers:
+
+| Header | Value |
+|---|---|
+| `Content-Type` | Meta's `mime_type`, e.g. `image/jpeg`, `audio/ogg; codecs=opus` |
+| `Content-Length` | The file size, when known |
+| `Content-Disposition` | `attachment; filename="<mediaId>.<ext>"`. Meta doesn't keep the original filename |
+| `X-CW-Media-SHA256` | Meta's `sha256` |
+
+- **Errors:** gateway errors have the body `{ "error": "<message>" }`. Meta's errors pass through in Meta's envelope.
+
+| Status | When |
+|---|---|
+| 400 | `mediaId` isn't a valid media ID |
+| 401 | Bad key, or unknown tenant |
+| 404 | Not found, expired, deleted, or owned by another tenant. The same body for all four |
+| 429 / 503 | Rate limited or unavailable, with `Retry-After` |
+| 502 | Meta's download URL failed, e.g. it expired |
+| 504 | Meta took more than 30 s to send headers, or went 30 s without sending data |
+| Meta's status | Meta rejected the lookup for another reason |
+
+If the stream breaks after the headers, the gateway aborts the connection, so the node sees a network error, not a short file.
+
+- **No side effects:** a download changes nothing, so the node retries 429, 503, 502, 504 and network errors (see Errors).
+- **Routing confirmed (2026-09-26):** `api.contactwise.io` routes `/v1/whatsapp/` to the gateway. Without a key it returns 401 `{ "error": "Missing X-CW-Api-Key header." }`.
 
 ### Not built yet (API team)
 
-- **Media download that streams the file:** TIN-33. The route isn't designed yet.
 - **Webhook subscriptions and signed forwarding** for the trigger: TIN-34. Not designed yet.
 
 ## Errors
@@ -85,6 +115,8 @@ These are the same send-safety rules as SMS (`nodes/shared/errors.ts`, `nodes/sh
 | 429, 503 | Nothing was sent | **Yes**, honouring `Retry-After`. At most 3 attempts and 60 s of total waiting |
 | 500 and other 5xx | **Outcome unknown**: the message may have been sent | **Never** |
 | 502 / 504 / timeout | Outcome unknown | **Never** |
+
+Media → Download is the exception: it has no side effects, so it also retries 502, 504 and network errors, with the same limits. It still never retries a 500.
 
 There are no idempotency keys, so a retry after an unknown outcome can deliver the message twice.
 

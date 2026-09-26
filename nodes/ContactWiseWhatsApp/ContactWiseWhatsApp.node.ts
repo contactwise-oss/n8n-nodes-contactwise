@@ -13,7 +13,13 @@ import {
 } from 'n8n-workflow';
 
 import { getPhoneNumbers, getTemplates } from './methods/listSearch';
-import { deleteMedia, mediaDescription, mediaOperations, upload } from './resources/media/media';
+import {
+	deleteMedia,
+	download,
+	mediaDescription,
+	mediaOperations,
+	upload,
+} from './resources/media/media';
 import { senderAndRecipientDescription } from './resources/message/common';
 import { send, sendDescription } from './resources/message/send';
 import {
@@ -133,7 +139,11 @@ export class ContactWiseWhatsApp implements INodeType {
 
 		for (let i = 0; i < items.length; i++) {
 			try {
-				returnData.push({ json: await run.call(this, i), pairedItem: { item: i } });
+				returnData.push(
+					operation === 'download'
+						? await download.call(this, i)
+						: { json: await run.call(this, i), pairedItem: { item: i } },
+				);
 			} catch (error) {
 				if (this.continueOnFail()) {
 					const failure =

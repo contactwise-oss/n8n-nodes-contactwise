@@ -1,15 +1,19 @@
 import type { INodeExecutionData } from 'n8n-workflow';
 import { describe, expect, it } from 'vitest';
 
+import { TEST_API_KEY, TEST_TENANT_ID } from '../fixtures/contactwise-api';
 import {
 	TEST_PHONE_NUMBER_ID,
 	interceptGateway,
+	interceptMediaDownload,
+	mediaDownloadPath,
 	whatsAppScenarios,
 } from '../fixtures/whatsapp-api';
 import { runWhatsApp } from './whatsapp-node';
 
 // Seam L2. From docs/contactwise-whatsapp-api.md: POST /{phone-number-id}/media (multipart:
-// messaging_product, type, file) returns { id }; DELETE /{media-id} returns { success: true }.
+// messaging_product, type, file) returns { id }; DELETE /{media-id} returns { success: true };
+// GET /v1/whatsapp/{tenantId}/media/{mediaId}/content streams the file (TIN-33).
 const pdf: INodeExecutionData = {
 	json: {},
 	binary: {
@@ -121,5 +125,197 @@ describe('ContactWise WhatsApp: Media → Delete', () => {
 
 		expect(items[0].json).toMatchObject({ errorDetails: { outcome: 'not-sent', codes: [100] } });
 		expect(items[1].json).toEqual({ success: true });
+	});
+});
+
+const MEDIA_ID = '1000000000000004';
+const pdfBytes = Buffer.from('%PDF-1.7 downloaded');
+const downloadParameters = { resource: 'media', operation: 'download', mediaId: MEDIA_ID };
+const downloadedPdf = () =>
+	whatsAppScenarios.mediaFile(pdfBytes, {
+		contentType: 'application/pdf',
+		fileName: `${MEDIA_ID}.pdf`,
+		sha256: 'abc123',
+	});
+
+describe('ContactWise WhatsApp: Media → Download', () => {
+	it('downloads the file into the binary field and describes it in the JSON', async () => {
+		const { requests } = interceptMediaDownload(MEDIA_ID, downloadedPdf());
+
+		const { error, items } = await runWhatsApp({ base: downloadParameters });
+
+		expect(error).toBeUndefined();
+		expect(requests).toHaveLength(1);
+		expect(requests[0].path).toBe(mediaDownloadPath(MEDIA_ID, TEST_TENANT_ID));
+		expect(requests[0].headers['x-cw-api-key']).toBe(TEST_API_KEY);
+		expect(requests[0].headers['x-cw-source']).toMatch(/^n8n-nodes-contactwise\//);
+		expect(items[0].json).toEqual({
+			id: MEDIA_ID,
+			mimeType: 'application/pdf',
+			fileName: `${MEDIA_ID}.pdf`,
+			fileSize: pdfBytes.length,
+			sha256: 'abc123',
+		});
+		expect(items[0].binary?.data).toMatchObject({
+			mimeType: 'application/pdf',
+			fileName: `${MEDIA_ID}.pdf`,
+		});
+		expect(Buffer.from(items[0].binary!.data.data, 'base64')).toEqual(pdfBytes);
+		expect(items[0].pairedItem).toEqual({ item: 0 });
+	});
+
+	it("uses 'Put Output File in Field' and the 'File Name' option", async () => {
+		interceptMediaDownload(MEDIA_ID, downloadedPdf());
+
+		const { error, items } = await runWhatsApp({
+			base: downloadParameters,
+			parameters: { binaryPropertyName: 'invoice', options: { fileName: 'invoice.pdf' } },
+		});
+
+		expect(error).toBeUndefined();
+		expect(items[0].binary?.data).toBeUndefined();
+		expect(items[0].binary?.invoice).toMatchObject({ fileName: 'invoice.pdf' });
+		expect(items[0].json.fileName).toBe('invoice.pdf');
+	});
+
+	it('keeps only the media type from a Content-Type with parameters', async () => {
+		interceptMediaDownload(
+			MEDIA_ID,
+			whatsAppScenarios.mediaFile(Buffer.from('OggS'), {
+				contentType: 'audio/ogg; codecs=opus',
+				fileName: `${MEDIA_ID}.ogg`,
+			}),
+		);
+
+		const { items } = await runWhatsApp({ base: downloadParameters });
+
+		expect(items[0].json.mimeType).toBe('audio/ogg');
+		expect(items[0].binary?.data.mimeType).toBe('audio/ogg');
+	});
+
+	it('404: says the media file was not found and what to check', async () => {
+		interceptMediaDownload(MEDIA_ID, whatsAppScenarios.gatewayError(404, 'Media not found.'));
+
+		const { error } = await runWhatsApp({ base: downloadParameters });
+
+		expect(error?.message).toBe("The media file wasn't found [item 0]");
+		expect(error?.description).toContain("'Media ID'");
+		expect(`${error?.message} ${error?.description}`).not.toMatch(/sent/);
+	});
+
+	it('404 without a JSON body is still "not found"', async () => {
+		interceptMediaDownload(MEDIA_ID, { status: 404, body: '' });
+
+		const { error } = await runWhatsApp({ base: downloadParameters });
+
+		expect(error?.message).toBe("The media file wasn't found [item 0]");
+	});
+
+	it('401 for a bad key or unknown tenant points at the credential', async () => {
+		interceptMediaDownload(MEDIA_ID, whatsAppScenarios.gatewayError(401, 'Invalid API key.'));
+
+		const { error } = await runWhatsApp({ base: downloadParameters });
+
+		expect(error?.message).toBe(
+			"The 'API Key' is invalid, or it doesn't belong to this tenant [item 0]",
+		);
+	});
+
+	it('400 shows the gateway message', async () => {
+		interceptMediaDownload(MEDIA_ID, whatsAppScenarios.gatewayError(400, 'Invalid media ID.'));
+
+		const { error } = await runWhatsApp({ base: downloadParameters });
+
+		expect(error?.message).toBe(
+			'ContactWise rejected the download request: Invalid media ID. [item 0]',
+		);
+		expect(error?.description).toBe(
+			"Nothing was downloaded. Check the 'Media ID', then try again.",
+		);
+	});
+
+	it('a Meta rejection names the download request', async () => {
+		interceptMediaDownload(
+			MEDIA_ID,
+			whatsAppScenarios.metaError(100, 'Invalid parameter', { details: 'Bad media ID' }),
+		);
+
+		const { error } = await runWhatsApp({ base: downloadParameters });
+
+		expect(error?.message).toBe(
+			'WhatsApp rejected the download request: Invalid parameter [item 0]',
+		);
+		expect(error?.description).toContain('Bad media ID.');
+	});
+
+	it('504: downloading has no side effects, so it tries again', async () => {
+		const first = interceptMediaDownload(
+			MEDIA_ID,
+			whatsAppScenarios.gatewayError(504, 'Meta timed out.'),
+		);
+		const second = interceptMediaDownload(MEDIA_ID, downloadedPdf());
+
+		const { error, items } = await runWhatsApp({ base: downloadParameters });
+
+		expect(error).toBeUndefined();
+		expect(first.requests).toHaveLength(1);
+		expect(second.requests).toHaveLength(1);
+		expect(items[0].json.id).toBe(MEDIA_ID);
+	}, 10_000);
+
+	it('a broken connection is retried too', async () => {
+		interceptMediaDownload(MEDIA_ID, whatsAppScenarios.networkTimeout());
+		interceptMediaDownload(MEDIA_ID, downloadedPdf());
+
+		const { error, items } = await runWhatsApp({ base: downloadParameters });
+
+		expect(error).toBeUndefined();
+		expect(items[0].json.id).toBe(MEDIA_ID);
+	}, 10_000);
+
+	it('502 on every attempt: gives up after 3 with a download message', async () => {
+		const attempts = [1, 2, 3, 4].map(() =>
+			interceptMediaDownload(MEDIA_ID, whatsAppScenarios.gatewayError(502, 'Bad gateway.')),
+		);
+
+		const { error } = await runWhatsApp({ base: downloadParameters });
+
+		expect(attempts.filter(({ requests }) => requests.length > 0)).toHaveLength(3);
+		expect(error?.message).toBe(
+			"The media file wasn't downloaded: the connection to ContactWise failed [item 0]",
+		);
+		expect(`${error?.message} ${error?.description}`).not.toMatch(/may already|sent/);
+	}, 10_000);
+
+	it('500: not retried', async () => {
+		const first = interceptMediaDownload(
+			MEDIA_ID,
+			whatsAppScenarios.gatewayError(500, 'Unexpected error.'),
+		);
+		const second = interceptMediaDownload(MEDIA_ID, downloadedPdf());
+
+		const { error } = await runWhatsApp({ base: downloadParameters });
+
+		expect(first.requests).toHaveLength(1);
+		expect(second.requests).toHaveLength(0);
+		expect(error?.message).toBe(
+			"The media file wasn't downloaded: ContactWise returned an unexpected response [item 0]",
+		);
+	});
+
+	it('Continue On Fail keeps going with the next item', async () => {
+		interceptMediaDownload(MEDIA_ID, whatsAppScenarios.gatewayError(404, 'Media not found.'));
+		interceptMediaDownload(MEDIA_ID, downloadedPdf());
+
+		const { items } = await runWhatsApp({
+			base: downloadParameters,
+			input: [{}, {}],
+			continueOnFail: true,
+		});
+
+		expect(items[0].json).toMatchObject({ errorDetails: { httpStatus: 404 } });
+		expect(items[0].binary).toBeUndefined();
+		expect(items[1].json.id).toBe(MEDIA_ID);
+		expect(items[1].binary?.data).toBeDefined();
 	});
 });

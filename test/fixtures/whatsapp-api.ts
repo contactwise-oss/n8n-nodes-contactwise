@@ -14,6 +14,10 @@ export const TEST_PHONE_NUMBER_ID = '100000000000002';
 export const gatewayPath = (graphPath: string, tenantId = TEST_TENANT_ID) =>
 	`/v1/waba-direct/${tenantId}/${graphPath}`;
 
+/** The gateway's own media download route, outside the `/v1/waba-direct/` proxy (TIN-33). */
+export const mediaDownloadPath = (mediaId: string, tenantId = TEST_TENANT_ID) =>
+	`/v1/whatsapp/${tenantId}/media/${mediaId}/content`;
+
 export type GatewayScenario =
 	| { status: number; body: unknown; headers?: Record<string, string> }
 	| { networkError: { code: string; message: string } };
@@ -104,6 +108,36 @@ export const whatsAppScenarios = {
 	networkTimeout: (): GatewayScenario => ({
 		networkError: { code: 'ETIMEDOUT', message: 'connect ETIMEDOUT' },
 	}),
+
+	/** 200 from the media download route: the file's bytes, with the gateway's headers. */
+	mediaFile: (
+		bytes: Buffer,
+		{
+			contentType,
+			fileName,
+			sha256 = 'fake-sha256',
+		}: { contentType: string; fileName: string; sha256?: string },
+	): GatewayScenario => ({
+		status: 200,
+		body: bytes,
+		headers: {
+			'Content-Type': contentType,
+			'Content-Length': String(bytes.length),
+			'Content-Disposition': `attachment; filename="${fileName}"`,
+			'X-CW-Media-SHA256': sha256,
+		},
+	}),
+
+	/** An error the gateway itself returns: `{ "error": "<message>" }`. */
+	gatewayError: (
+		status: number,
+		message: string,
+		headers: Record<string, string> = {},
+	): GatewayScenario => ({
+		status,
+		body: { error: message },
+		headers: { 'Content-Type': 'application/json', ...headers },
+	}),
 };
 
 export interface CapturedGatewayRequest extends CapturedRequest {
@@ -121,8 +155,20 @@ export function interceptGateway(
 	scenario: GatewayScenario,
 	tenantId = TEST_TENANT_ID,
 ) {
+	return interceptPath(method, gatewayPath(graphPath, tenantId), scenario);
+}
+
+/** Answers the next media download for `mediaId` with `scenario`. */
+export function interceptMediaDownload(
+	mediaId: string,
+	scenario: GatewayScenario,
+	tenantId = TEST_TENANT_ID,
+) {
+	return interceptPath('get', mediaDownloadPath(mediaId, tenantId), scenario);
+}
+
+function interceptPath(method: 'get' | 'post' | 'delete', path: string, scenario: GatewayScenario) {
 	const requests: CapturedGatewayRequest[] = [];
-	const path = gatewayPath(graphPath, tenantId);
 	const interceptor = nock(CW_BASE_URL).intercept(
 		(uri) => uri.split('?')[0] === path,
 		method.toUpperCase(),

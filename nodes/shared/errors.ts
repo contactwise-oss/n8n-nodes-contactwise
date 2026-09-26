@@ -137,8 +137,13 @@ function supportTraceHint(traceId: string | undefined): string {
 	return traceId ? ` If you contact ContactWise support, quote trace ID ${traceId}.` : '';
 }
 
-/** What a call does: send an SMS or WhatsApp message, or upload or delete a WhatsApp media file. */
-export type Channel = 'sms' | 'whatsapp' | 'whatsapp-upload' | 'whatsapp-delete';
+/** What a call does: send an SMS or WhatsApp message, or upload, delete or download a WhatsApp media file. */
+export type Channel =
+	| 'sms'
+	| 'whatsapp'
+	| 'whatsapp-upload'
+	| 'whatsapp-delete'
+	| 'whatsapp-download';
 
 interface Wording {
 	/** "The SMS may already have been …" */
@@ -159,6 +164,11 @@ interface Wording {
 	unknownAdvice: string;
 	/** The fix for a Meta code with no specific one. */
 	metaGeneralFix: string;
+	/**
+	 * Set for calls with no side effects. A failed connection or a 502/504 then can't have done
+	 * anything twice, so it's retried like a 429/503, and the wording names what failed instead.
+	 */
+	readOnly?: { failed: string; notFound: string };
 }
 
 const SEND_ADVICE = (thing: string) =>
@@ -211,6 +221,22 @@ const CHANNEL_WORDING: Record<Channel, Wording> = {
 		unknownAdvice: 'Check whether the media file still exists before trying again.',
 		metaGeneralFix: "Check the 'Media ID', then try again.",
 	},
+	'whatsapp-download': {
+		theThing: 'The media file',
+		things: 'media files',
+		done: 'downloaded',
+		request: 'the download request',
+		metaRequest: 'the download request',
+		nothingDone: 'Nothing was downloaded.',
+		unavailable: "ContactWise can't download media right now",
+		unknownAdvice: 'Wait a few minutes and run the workflow again.',
+		metaGeneralFix: "Check the 'Media ID', then try again.",
+		readOnly: {
+			failed: "The media file wasn't downloaded",
+			notFound:
+				"Check the 'Media ID'. WhatsApp keeps media for 30 days, and you can only download media from your own WhatsApp Business Account.",
+		},
+	},
 };
 
 export function interpretFailure(call: FailedCall, channel: Channel = 'sms'): SendFailure {
@@ -226,8 +252,24 @@ export function interpretFailure(call: FailedCall, channel: Channel = 'sms'): Se
 		number | string
 	>;
 	const base = { httpStatus: statusCode, codes, traceId };
+	const gatewayMessage = typeof body?.error === 'string' ? body.error : undefined;
+	const { readOnly } = wording;
 
 	if (call.networkError || statusCode === undefined || statusCode === 502 || statusCode === 504) {
+		if (readOnly) {
+			return {
+				...base,
+				outcome: 'not-sent',
+				retryable: true,
+				messages: call.networkError?.message
+					? [call.networkError.message]
+					: gatewayMessage
+						? [gatewayMessage]
+						: [],
+				message: `${readOnly.failed}: the connection to ContactWise failed`,
+				description: `${wording.nothingDone} ${wording.unknownAdvice}`,
+			};
+		}
 		return {
 			...base,
 			outcome: 'unknown',
@@ -239,6 +281,16 @@ export function interpretFailure(call: FailedCall, channel: Channel = 'sms'): Se
 	}
 
 	if (statusCode >= 500 && statusCode !== 503) {
+		if (readOnly) {
+			return {
+				...base,
+				outcome: 'not-sent',
+				retryable: false,
+				messages: gatewayMessage ? [gatewayMessage] : [],
+				message: `${readOnly.failed}: ContactWise returned an unexpected response`,
+				description: `${wording.nothingDone} ${wording.unknownAdvice}${supportTraceHint(traceId)}`,
+			};
+		}
 		return {
 			...base,
 			outcome: 'unknown',
@@ -288,6 +340,17 @@ export function interpretFailure(call: FailedCall, channel: Channel = 'sms'): Se
 		};
 	}
 
+	if (statusCode === 404 && readOnly) {
+		return {
+			...base,
+			outcome: 'not-sent',
+			retryable: false,
+			messages: gatewayMessage ? [gatewayMessage] : [],
+			message: `${wording.theThing} wasn't found`,
+			description: `${wording.nothingDone} ${readOnly.notFound}`,
+		};
+	}
+
 	if (statusCode === 400 && errorList) {
 		const messages = errorList.map((entry) => entry.message ?? String(entry.code));
 		return {
@@ -313,6 +376,18 @@ export function interpretFailure(call: FailedCall, channel: Channel = 'sms'): Se
 			messages,
 			message: `ContactWise couldn't read the request: ${messages.join('; ')}`,
 			description: `${wording.nothingDone} Check that every field resolves to plain text, not an object or list.`,
+		};
+	}
+
+	// The gateway's own errors: `{ "error": "<message>" }` (TIN-33).
+	if (gatewayMessage) {
+		return {
+			...base,
+			outcome: 'not-sent',
+			retryable: false,
+			messages: [gatewayMessage],
+			message: `ContactWise rejected ${wording.request}: ${gatewayMessage}`,
+			description: `${wording.nothingDone} ${wording.metaGeneralFix}`,
 		};
 	}
 

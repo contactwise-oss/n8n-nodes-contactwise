@@ -11,7 +11,7 @@ One npm package holds every ContactWise node and a **single shared credential ty
 | Credential `ContactWise API` | `contactWiseApi` | 1 |
 | Node `ContactWise SMS` | `contactWiseSms` | 1 |
 | Node `ContactWise SMS Trigger` | `contactWiseSmsTrigger` | Later (blocked: no webhook-registration API yet, TIN-26). Renamed from `ContactWise Trigger` on 2026-09-22, before anything was published |
-| Node `ContactWise WhatsApp` | `contactWiseWhatsApp` | M3: Message → Send (TIN-39), Send Template (TIN-41), Send and Wait (TIN-43); Media → Upload and Delete (TIN-42). Media → Download to follow (TIN-55) |
+| Node `ContactWise WhatsApp` | `contactWiseWhatsApp` | M3: Message → Send (TIN-39), Send Template (TIN-41), Send and Wait (TIN-43); Media → Upload and Delete (TIN-42), Download (TIN-55) |
 | Node `ContactWise WhatsApp Trigger` | `contactWiseWhatsAppTrigger` | M3 (TIN-40; blocked by webhook subscriptions, TIN-34) |
 
 Internal names (node `name`, credential `name`, parameter `name`s, option `value`s) are permanent once published, because saved workflows store them.
@@ -33,7 +33,7 @@ nodes/ContactWiseWhatsApp/resources/message/send.ts            # Message → Sen
 nodes/ContactWiseWhatsApp/resources/message/sendTemplate.ts    # Message → Send Template: 'Template' locator, header/body/button components
 nodes/ContactWiseWhatsApp/resources/message/sendAndWait.ts     # Message → Send and Wait for Response: message + signed links, wait, resume webhook
 nodes/ContactWiseWhatsApp/resources/message/contact.ts         # contact card parameters and Meta's `contacts` body
-nodes/ContactWiseWhatsApp/resources/media/media.ts             # Media → Upload (multipart, returns the media ID) and Delete; Download is TIN-55
+nodes/ContactWiseWhatsApp/resources/media/media.ts             # Media → Upload (multipart, returns the media ID), Delete, and Download (binary, via the gateway's streaming route)
 nodes/ContactWiseWhatsApp/methods/listSearch.ts                # resource locator lists: phone numbers; approved templates, paged by Meta's cursor
 nodes/ContactWiseWhatsApp/shared/recipient.ts                  # normalizeRecipientPhoneNumber(): international, 8–15 digits, digits only
 nodes/ContactWiseWhatsApp/shared/currencies.ts                 # active ISO 4217 codes, inlined (no currency-codes package)
@@ -48,8 +48,9 @@ Code every node uses (transport, error mapping, retry policy) lives in `nodes/sh
 - requests with no body (GET)
 - native `FormData` multipart bodies, which n8n-core's request helper sends as `multipart/form-data`
 - the `ILoadOptionsFunctions` context, for dropdowns (TIN-39)
+- binary responses: `contactWiseApiDownload()` returns the bytes and the headers (TIN-55). Error bodies then arrive as bytes too, so they're parsed as JSON before the error mapping sees them
 
-Query strings are built into the request path with `URLSearchParams` (TIN-41), so the transport has no query option. Still to come: binary responses (TIN-42) and the hook context (TIN-40).
+Query strings are built into the request path with `URLSearchParams` (TIN-41), so the transport has no query option. Still to come: the hook context (TIN-40).
 
 `interpretFailure()` reads two error formats:
 - **ContactWise:** `errors[]` with codes 1001 and 9000–9011, or problem+json.
@@ -58,8 +59,11 @@ Query strings are built into the request path with `URLSearchParams` (TIN-41), s
 The status rules come before either format: 429/503 are retryable, and 5xx, 502/504 and timeouts are an unknown outcome that's never retried. The `channel` argument names what the call did, in every message:
 - `sms` and `whatsapp` for sends, so WhatsApp errors never say "SMS"
 - `whatsapp-upload` and `whatsapp-delete` for media (TIN-42), so an upload or delete never reads as "sent". For example: "The media file may already have been uploaded", "Nothing was deleted".
+- `whatsapp-download` for Media → Download (TIN-55). A download has no side effects, so the channel is marked read-only: 502, 504 and broken connections are retried like 429/503, a 404 says the media file wasn't found, and nothing says "may already have been". A 500 is still not retried.
 
 A binary media upload inside Message → Send uses `whatsapp-upload` for its upload step.
+
+The gateway's own errors have the body `{ "error": "<message>" }` (TIN-33). When no other rule matches, that message is shown as "ContactWise rejected <the request>: <message>".
 
 ## Credential
 

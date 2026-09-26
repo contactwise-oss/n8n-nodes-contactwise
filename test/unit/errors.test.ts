@@ -194,6 +194,11 @@ describe('interpretFailure', () => {
 				{ statusCode: 404, body: {} },
 				"ContactWise didn't accept the WhatsApp message (status 404)",
 			],
+			[
+				'gateway error body',
+				{ statusCode: 403, body: { error: 'Tenant is suspended.' } },
+				'ContactWise rejected the WhatsApp message: Tenant is suspended.',
+			],
 		])('%s: names the WhatsApp message, never an SMS', (_name, call, message) => {
 			const failure = interpretFailure(call, 'whatsapp');
 
