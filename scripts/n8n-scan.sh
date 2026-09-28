@@ -7,6 +7,15 @@
 set -u
 
 PACKAGE=${1:?usage: n8n-scan.sh <package@version>}
+VERSION=${PACKAGE##*@}
+
+# npm can take several minutes to serve a new version. Scanning before then fails the
+# provenance check with the same "failed security checks" as a real finding (0.3.1).
+for wait in $(seq 1 40); do
+	[ "$(npm view "$PACKAGE" version 2>/dev/null)" = "$VERSION" ] && break
+	echo "Waiting for $PACKAGE on npm ($wait/40)"
+	sleep 15
+done
 
 for attempt in 1 2 3 4 5; do
 	output=$(npx -y @n8n/scan-community-package "$PACKAGE" 2>&1)
@@ -24,7 +33,7 @@ for attempt in 1 2 3 4 5; do
 		exit 0
 	fi
 
-	# Anything else (a new version can 404 on the registry for a minute) is retried.
+	# Anything else (a registry hiccup) is retried.
 	echo "Scan attempt $attempt didn't finish; retrying in 30s"
 	sleep 30
 done
