@@ -36,7 +36,7 @@ function sendInteractive(parameters: Record<string, unknown>) {
 	return { intercepted, run };
 }
 
-describe('ContactWise WhatsApp: Message → Send, interactive (v1.1)', () => {
+describe('ContactWise WhatsApp: Message → Send, interactive (v1.1 and later)', () => {
 	it('buttons: sends reply buttons with a header and footer', async () => {
 		const { intercepted, run } = sendInteractive({
 			interactiveType: 'button',
@@ -171,6 +171,134 @@ describe('ContactWise WhatsApp: Message → Send, interactive (v1.1)', () => {
 		expect(error?.message).toContain(field);
 		expect(error?.message).toContain('[item 0]');
 		expect(intercepted.requests).toHaveLength(0);
+	});
+
+	it('v1.2: buttons as a JSON array send the same body as the fields', async () => {
+		const { intercepted, run } = sendInteractive({
+			interactiveType: 'button',
+			interactiveBody: 'Which department?',
+			buttonsInputMode: 'json',
+			buttonsJson: [
+				{ id: 'cardiology', title: 'Cardiology' },
+				{ id: 'ortho', title: 'Orthopaedics' },
+			],
+		});
+		const { error } = await run;
+
+		expect(error).toBeUndefined();
+		expect(intercepted.requests[0].body).toEqual({
+			...envelope,
+			interactive: {
+				type: 'button',
+				body: { text: 'Which department?' },
+				action: {
+					buttons: [
+						{ type: 'reply', reply: { id: 'cardiology', title: 'Cardiology' } },
+						{ type: 'reply', reply: { id: 'ortho', title: 'Orthopaedics' } },
+					],
+				},
+			},
+		});
+	});
+
+	it('v1.2: list rows as a JSON string send the same body as the fields', async () => {
+		const { intercepted, run } = sendInteractive({
+			interactiveType: 'list',
+			interactiveBody: 'Pick a doctor',
+			listButtonText: 'Doctors',
+			rowsInputMode: 'json',
+			rowsJson:
+				'[{"id":"dr-meenakshi","title":"Dr. Meenakshi","description":"Cardiology, Mon Wed Fri"},{"id":"dr-arvind","title":"Dr. Arvind"}]',
+		});
+		const { error } = await run;
+
+		expect(error).toBeUndefined();
+		expect(intercepted.requests[0].body).toEqual({
+			...envelope,
+			interactive: {
+				type: 'list',
+				body: { text: 'Pick a doctor' },
+				action: {
+					button: 'Doctors',
+					sections: [
+						{
+							rows: [
+								{
+									id: 'dr-meenakshi',
+									title: 'Dr. Meenakshi',
+									description: 'Cardiology, Mon Wed Fri',
+								},
+								{ id: 'dr-arvind', title: 'Dr. Arvind' },
+							],
+						},
+					],
+				},
+			},
+		});
+	});
+
+	const jsonButtons = (buttonsJson: unknown) => ({
+		interactiveType: 'button',
+		buttonsInputMode: 'json',
+		buttonsJson,
+	});
+	const jsonRows = (rowsJson: unknown) => ({
+		interactiveType: 'list',
+		listButtonText: 'Menu',
+		rowsInputMode: 'json',
+		rowsJson,
+	});
+
+	it.each([
+		['buttons that are not JSON', jsonButtons('[{id: yes}'), "'Buttons (JSON)' isn't valid JSON"],
+		[
+			'buttons that are not an array',
+			jsonButtons({ id: 'yes', title: 'Yes' }),
+			"'Buttons (JSON)' must be an array",
+		],
+		['a button without a title', jsonButtons([{ id: 'yes' }]), "'Buttons (JSON)' entry 1 needs"],
+		[
+			'a row with a number ID',
+			jsonRows([
+				{ id: 'a', title: 'A' },
+				{ id: 2, title: 'B' },
+			]),
+			"'Rows (JSON)' entry 2 needs",
+		],
+		['4 buttons', jsonButtons(buttons('A', 'B', 'C', 'D').buttons), "'Buttons'"],
+		['no rows', jsonRows('[]'), "'Rows'"],
+	])('v1.2: %s fails the item and makes no API call', async (_name, parameters, message) => {
+		const { intercepted, run } = sendInteractive({ interactiveBody: 'Hi', ...parameters });
+		const { error } = await run;
+
+		expect(error?.message).toContain(message);
+		expect(error?.message).toContain('[item 0]');
+		expect(intercepted.requests).toHaveLength(0);
+	});
+
+	it('v1.1: a saved buttons message is sent exactly as before', async () => {
+		const intercepted = interceptGateway('post', messagesPath, whatsAppScenarios.messageAccepted());
+
+		const { error } = await runWhatsApp({
+			typeVersion: 1.1,
+			parameters: {
+				messageType: 'interactive',
+				interactiveType: 'button',
+				interactiveBody: 'Continue?',
+				interactiveButtons: buttons('Yes'),
+				additionalFields: {},
+			},
+		});
+
+		expect(error).toBeUndefined();
+		expect(intercepted.requests[0].body).toEqual({
+			...envelope,
+			interactive: {
+				type: 'button',
+				body: { text: 'Continue?' },
+				action: { buttons: [{ type: 'reply', reply: { id: 'option-1', title: 'Yes' } }] },
+			},
+		});
 	});
 
 	it('v1: a text message is sent exactly as before', async () => {
