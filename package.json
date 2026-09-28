@@ -1,6 +1,6 @@
 {
 	"name": "@contactwise/n8n-nodes-contactwise",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "n8n nodes for the ContactWise messaging API: send DLT-compliant SMS in India, and send and receive WhatsApp messages without your own Meta account",
 	"license": "MIT",
 	"homepage": "https://github.com/contactwise-oss/n8n-nodes-contactwise#readme",
