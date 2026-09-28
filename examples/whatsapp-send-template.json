@@ -1,0 +1,72 @@
+{
+  "name": "ContactWise: start a WhatsApp conversation with a template",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "7c0e4b2a-44a0-4c44-8d44-000000000001",
+      "name": "When clicking 'Execute workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendTemplate",
+        "phoneNumberId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "recipientPhoneNumber": "+44 7700 900123",
+        "template": {
+          "__rl": true,
+          "mode": "name",
+          "value": "order_update|en_US"
+        },
+        "components": {
+          "component": [
+            {
+              "type": "body",
+              "bodyParameters": {
+                "parameter": [
+                  {
+                    "type": "text",
+                    "text": "1042"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "id": "7c0e4b2a-44a0-4c44-8d44-000000000002",
+      "name": "Send order update template",
+      "type": "@contactwise/n8n-nodes-contactwise.contactWiseWhatsApp",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "Send order update template",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,14 +1,13 @@
 # @contactwise/n8n-nodes-contactwise
 
-Send DLT-compliant SMS to recipients in India from your [n8n](https://n8n.io/) workflows and AI agents, using [ContactWise](https://docs.contactwise.io/).
+Send DLT-compliant SMS to recipients in India, and send and receive WhatsApp messages, from your [n8n](https://n8n.io/) workflows and AI agents, using [ContactWise](https://docs.contactwise.io/). You don't need your own Meta account or access token.
 
 - **ContactWise SMS › Send**: one SMS per input item, with the DLT sender, template and entity your business has registered.
-- Numbers are normalized for you: `98765 43210`, `09876543210`, `919876543210` and `+91 98765-43210` are all sent as `+919876543210`.
-- Failures say clearly whether the SMS was sent, so you never double-send by accident.
+- **ContactWise WhatsApp**: send text, media, locations, contact cards and approved templates; send a message and wait for the recipient's answer; upload, download and delete media.
+- **ContactWise WhatsApp Trigger**: start a workflow when a customer messages you, when a message you sent is delivered, read or fails, or when a template or account changes.
+- Failures say clearly whether the message was sent, so you never double-send by accident.
 
-> **Status:** in development, not yet on npm. Phase 1 covers sending SMS to Indian numbers. Delivery-report triggers and WhatsApp are planned.
-
-[Installation](#installation) · [Credentials](#credentials) · [Send an SMS](#send-an-sms) · [DLT in 60 seconds](#dlt-in-60-seconds) · [Output](#output) · [Delivery reports](#delivery-reports) · [When a send fails](#when-a-send-fails) · [AI agents](#using-it-as-an-ai-agent-tool) · [Examples](#example-workflows) · [Compatibility](#compatibility)
+[Installation](#installation) · [Credentials](#credentials) · **SMS:** [Send an SMS](#send-an-sms) · [DLT](#dlt-in-60-seconds) · [Output](#output) · [Delivery reports](#delivery-reports) · [Failures](#when-a-send-fails) · **WhatsApp:** [Send](#send-a-whatsapp-message) · [Templates](#templates-and-the-24-hour-window) · [Media](#media) · [Send and Wait](#send-and-wait-for-a-response) · [Trigger](#whatsapp-trigger) · [Failures](#when-a-whatsapp-call-fails) · [AI agents](#using-it-as-an-ai-agent-tool) · [Examples](#example-workflows) · [Compatibility](#compatibility)
 
 ## Installation
 
@@ -24,9 +23,10 @@ Create a **ContactWise API** credential:
 |---|---|
 | API Key | Your ContactWise API key |
 | Tenant ID | Your ContactWise tenant ID |
-| Default Entity ID | *Optional.* Your DLT principal entity ID (PE ID). Used whenever a node's 'DLT Entity ID' is empty, so you don't repeat it on every node |
+| Default Entity ID | *Optional, SMS only.* Your DLT principal entity ID (PE ID). Used whenever a node's 'DLT Entity ID' is empty, so you don't repeat it on every node |
+| WhatsApp Business Account ID | *Optional, WhatsApp only.* Your tenant's WhatsApp Business Account ID. The WhatsApp node needs it to list your phone numbers and templates |
 
-Don't have an API key or tenant ID? Contact ContactWise support.
+Don't have an API key, tenant ID or WhatsApp Business Account ID? Contact ContactWise support. One credential works for all three nodes.
 
 **Test** checks the key against your tenant without sending anything. It reports an invalid key, a key that belongs to another tenant, or an inactive tenant.
 
@@ -90,7 +90,7 @@ One item per input item:
 
 ## Delivery reports
 
-Until a ContactWise trigger node ships, route delivery reports into n8n yourself:
+There's no SMS trigger node yet, so route SMS delivery reports into n8n yourself:
 
 1. Add an n8n **Webhook** node (POST) and copy its production URL.
 2. Put that URL in the Send node's **Options › Callback URL**.
@@ -131,26 +131,149 @@ With **Settings › On Error › Continue**, a failed item becomes an output ite
 
 ContactWise error codes: 1001 tenant · 9000 country · 9002–9004 sender ID · 9007 recipient · 9008/9009 message body · 9010 rate limited · 9011 service unavailable.
 
+## Send a WhatsApp message
+
+Add the **ContactWise WhatsApp** node and pick **Send message**.
+
+| Field | Notes |
+|---|---|
+| Phone Number | The WhatsApp number you send from. Pick it from the list, or enter its phone number ID |
+| Recipient Phone Number | Any country, in international format: country code then number, e.g. `+44 7700 900123` or `919876543210`. Spaces, dashes, dots, brackets and a leading `+` are ignored |
+| Message Type | Text, Image, Video, Document, Audio, Location or Contact |
+
+- **Text:** 'Text' (up to 4,096 characters). *Additional Fields › Show URL Preview* shows a preview of the first link.
+- **Image, Video, Document, Audio:** 'Media Source' is a public **Link**, a **Media ID** from *Media › Upload media*, or a **Binary File** from an earlier node, which is uploaded for you first. Images, videos and documents can have a caption, and documents a filename. Audio has no caption: WhatsApp doesn't support one.
+- **Location:** 'Latitude' and 'Longitude', with an optional 'Location Name' and 'Location Address'.
+- **Contact:** a contact card. 'Formatted Name' is required; names, phones, emails, addresses, organization, URLs and birthday are optional.
+
+The output is WhatsApp's answer, with the message ID in `messages[0].id`:
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "contacts": [{ "input": "447700900123", "wa_id": "447700900123" }],
+  "messages": [{ "id": "wamid.HBgLNDQ3NzAwOTAwMTIzFQIAERgSMA==" }]
+}
+```
+
+This means WhatsApp **accepted** the message, not that it was delivered. Delivery, read receipts and failures arrive later through the [WhatsApp Trigger](#whatsapp-trigger).
+
+## Templates and the 24-hour window
+
+WhatsApp lets you send a free-form message only within **24 hours of the recipient's last message to you**. Outside that window, and to start a conversation, send an approved **template** instead. A free-form message outside the window fails with "More than 24 hours have passed since the recipient last messaged you".
+
+Pick **Send template message**:
+
+| Field | Notes |
+|---|---|
+| Template | One of your approved templates, listed as `name (language)`. In **Name and Language** mode, enter `name|language`, e.g. `order_update|en_US` |
+| Components | The values for the template's variables, in order: **Header** (text, currency, date and time, image, video or document), **Body** (text, currency, date and time) and **Button** (a quick-reply payload or the dynamic end of a URL, by button index) |
+
+For authentication templates, the one-time code goes in both the body and a URL button with index 0. WhatsApp shows that button as **Copy Code**.
+
+Templates are created and approved in your WhatsApp Business Account, not in n8n.
+
+## Media
+
+Use the **Media** resource:
+
+| Operation | Does | Output |
+|---|---|---|
+| Upload media | Uploads a binary file from an earlier node to your phone number | `{ "id": "<media ID>" }`, to send by ID |
+| Download media | Downloads a media file by ID, such as the image in a customer's message | The file in a binary field (default `data`), with its MIME type and filename |
+| Delete media | Deletes a media file by ID | `{ "success": true }` |
+
+WhatsApp keeps media for 30 days. You can only download or delete media that belongs to your own WhatsApp Business Account.
+
+## Send and wait for a response
+
+**Send message and wait for response** sends a WhatsApp message with links, pauses the workflow, and continues when the recipient answers.
+
+| Response Type | The recipient | The output |
+|---|---|---|
+| Approval | Taps **Approve**, or **Approve** / **Decline** (`Type of Approval: Approve and Decline`) | `{ "data": { "approved": true, "respondedAt": "…" } }` |
+| Free Text | Opens a page and types an answer | `{ "data": { "text": "…", "respondedAt": "…" } }` |
+| Custom Form | Opens a page with your fields: text, textarea, number, email, date, dropdown or checkbox | `{ "data": { "<Field Label>": "…", "respondedAt": "…" } }` |
+
+- Opening a link only shows a page. The answer is recorded only when the recipient submits the page, so WhatsApp's link previews can't answer for them.
+- *Options › Limit Wait Time* continues the workflow after a time or at a date even without an answer.
+- The message is a normal WhatsApp message, so the 24-hour window applies. The links go to your n8n, which must be reachable from the recipient's phone.
+
+## WhatsApp Trigger
+
+Add the **ContactWise WhatsApp Trigger** node, pick the events under 'Trigger On', and activate the workflow. On activation the node registers the workflow's webhook URL with ContactWise; on deactivation it removes it.
+
+| Trigger On | Starts the workflow for |
+|---|---|
+| Messages | Incoming messages, and status updates (sent, delivered, read, failed) for messages you sent |
+| Message Template Status Update, Message Template Quality Update, Template Category Update | Changes to your templates |
+| Account Update, Account Review Update, Business Capability Update, Phone Number Name Update, Phone Number Quality Update, Security | Changes to your WhatsApp Business Account and numbers |
+
+*Options › Message Status Updates* limits which statuses start the workflow, for example only **Failed**. Incoming messages and other events always do.
+
+> [!IMPORTANT]
+> ContactWise must be able to reach your n8n: its webhook URL has to be a **public `https://` address**. On a self-hosted n8n, set `WEBHOOK_URL` to your public URL. n8n on `localhost` or a private network can't receive events, and activation fails with ContactWise's reason, for example "url must use https://.".
+
+Each change in an event becomes one item: WhatsApp's `value`, plus `field`, `whatsAppBusinessAccountId` and `deliveryId`. An incoming text message looks like this:
+
+```json
+{
+  "messaging_product": "whatsapp",
+  "metadata": { "display_phone_number": "15550001111", "phone_number_id": "100000000000002" },
+  "contacts": [{ "profile": { "name": "Asha" }, "wa_id": "447700900123" }],
+  "messages": [{ "from": "447700900123", "id": "wamid.…", "type": "text", "text": { "body": "Hi 👋" } }],
+  "field": "messages",
+  "whatsAppBusinessAccountId": "100000000000001",
+  "deliveryId": "dlv_8_dZvztsSsZqRAMrlPSZzp"
+}
+```
+
+- **Signed:** every event is signed by ContactWise. Requests that aren't correctly signed, or are more than 5 minutes old, are refused with 401 and start nothing.
+- **At least once, in any order:** an event can arrive twice, and a `read` status can arrive before `delivered`. If a workflow must not run twice for one event, deduplicate on `deliveryId`: it stays the same when an event is delivered again.
+- **Reply to a message** by sending to `{{ $json.messages[0].from }}` from `{{ $json.metadata.phone_number_id }}`. A reply is inside the 24-hour window, so it can be free-form.
+- **Listen for test event** in the editor registers a temporary webhook, removed when listening stops.
+- If a workflow was deactivated while n8n was down, ContactWise disables its webhook after 24 hours of failed deliveries. Deactivate and activate the workflow to register a new one.
+
+## When a WhatsApp call fails
+
+The WhatsApp node follows the same rules as SMS: every failure says whether the message was sent, only 429 and 503 are retried, and a 500, 502, 504 or timeout is never retried because the message may already have gone out. WhatsApp's own errors are shown with a fix for the common ones:
+
+| WhatsApp code | Meaning |
+|---|---|
+| 131047 | More than 24 hours since the recipient's last message: send a template |
+| 131026 | The recipient can't receive this message: check the number is on WhatsApp |
+| 131056 | Too many messages to this recipient in a short time |
+| 130429 | Your number's sending limit was reached |
+| 132000–132999 | The template doesn't exist in this language, isn't approved, or its parameters don't match |
+
+With *On Error › Continue*, a failed item carries `error` and `errorDetails`, as for SMS. `errorDetails.traceId` is WhatsApp's trace ID for support. Downloads have no side effects, so they're also retried after a 502, 504 or broken connection.
+
+The Retry On Fail warning above applies to the WhatsApp node too.
+
 ## Using it as an AI agent tool
 
-The node works as a tool for n8n's **AI Agent**. The agent can fill in fields such as 'To' and 'Message' with `$fromAI()` expressions.
+The SMS and WhatsApp nodes work as tools for n8n's **AI Agent**. The agent can fill in fields such as 'To' and 'Message' for SMS, or 'Recipient Phone Number' and 'Text' for WhatsApp, with `$fromAI()` expressions.
 
-Each call sends a real, billable SMS. Keep these fixed on the tool rather than left to the agent:
-- 'Sender ID', 'DLT Template ID' and 'DLT Entity ID'
-- enough of 'Message' that it still matches the template
+Each call sends a real, billable message. Keep these fixed on the tool rather than left to the agent:
+- for SMS, 'Sender ID', 'DLT Template ID' and 'DLT Entity ID', and enough of 'Message' that it still matches the template
+- for WhatsApp, 'Phone Number' and, for templates, 'Template'
 
 Consider requiring human approval before the tool runs.
 
 ## Example workflows
 
-Import these from the n8n editor (**⋯ › Import from File**). Then replace the sender ID and template ID with your registered values, and select your ContactWise API credential.
+Import these from the n8n editor (**⋯ › Import from File**). Then select your ContactWise API credential, and replace the example values (sender and template IDs, phone numbers, template names) with yours. In the WhatsApp examples, pick your 'Phone Number' from the list.
 
-- [`examples/webhook-order-sms.json`](examples/webhook-order-sms.json): send an order confirmation when a webhook receives a new order. The order ID becomes the 'Custom ID'.
+- [`examples/webhook-order-sms.json`](examples/webhook-order-sms.json): send an order confirmation SMS when a webhook receives a new order. The order ID becomes the 'Custom ID'.
 - [`examples/bulk-list-sms.json`](examples/bulk-list-sms.json): send to a list of recipients, one SMS each. It uses *On Error: Continue* so one bad number doesn't stop the rest.
+- [`examples/whatsapp-send-text.json`](examples/whatsapp-send-text.json): send a WhatsApp text message.
+- [`examples/whatsapp-send-template.json`](examples/whatsapp-send-template.json): start a conversation with an approved template that has one body variable.
+- [`examples/whatsapp-approval.json`](examples/whatsapp-approval.json): ask for approval over WhatsApp and branch on the answer.
+- [`examples/whatsapp-trigger-reply.json`](examples/whatsapp-trigger-reply.json): reply to every incoming WhatsApp text message.
 
 ## Compatibility
 
-Built and tested against n8n 2.40. Requires an n8n version that supports community nodes. On n8n Cloud it also needs verification (pending).
+Built and tested against n8n 2.40. Requires an n8n version that supports community nodes. On n8n Cloud it also needs verification (pending). The WhatsApp Trigger needs n8n to be reachable on a public `https://` URL.
 
 ## Resources
 

@@ -1,0 +1,57 @@
+{
+  "name": "ContactWise: send a WhatsApp text",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "7c0e4b2a-44a0-4c44-8d44-000000000001",
+      "name": "When clicking 'Execute workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumberId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "recipientPhoneNumber": "+44 7700 900123",
+        "messageType": "text",
+        "textBody": "Hi Asha, your order 1042 has shipped. Track it at https://example.com/track/1042",
+        "additionalFields": {
+          "previewUrl": true
+        }
+      },
+      "id": "7c0e4b2a-44a0-4c44-8d44-000000000002",
+      "name": "Send WhatsApp text",
+      "type": "@contactwise/n8n-nodes-contactwise.contactWiseWhatsApp",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "When clicking 'Execute workflow'": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

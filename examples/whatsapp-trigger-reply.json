@@ -1,0 +1,105 @@
+{
+  "name": "ContactWise: reply to incoming WhatsApp messages",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "messages"
+        ],
+        "options": {}
+      },
+      "id": "7c0e4b2a-44a0-4c44-8d44-000000000001",
+      "name": "On WhatsApp message",
+      "type": "@contactwise/n8n-nodes-contactwise.contactWiseWhatsAppTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "3a9d1e7c-44a0-4c44-8d44-000000000004"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.messages?.[0]?.type }}",
+              "rightValue": "text",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7c0e4b2a-44a0-4c44-8d44-000000000002",
+      "name": "Is it a text message?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "phoneNumberId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.metadata.phone_number_id }}"
+        },
+        "recipientPhoneNumber": "={{ $json.messages[0].from }}",
+        "messageType": "text",
+        "textBody": "=Thanks {{ $json.contacts?.[0]?.profile?.name ?? '' }}, we got your message and will reply shortly.",
+        "additionalFields": {}
+      },
+      "id": "7c0e4b2a-44a0-4c44-8d44-000000000003",
+      "name": "Reply",
+      "type": "@contactwise/n8n-nodes-contactwise.contactWiseWhatsApp",
+      "typeVersion": 1,
+      "position": [
+        480,
+        -100
+      ]
+    }
+  ],
+  "connections": {
+    "On WhatsApp message": {
+      "main": [
+        [
+          {
+            "node": "Is it a text message?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is it a text message?": {
+      "main": [
+        [
+          {
+            "node": "Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
