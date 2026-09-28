@@ -139,12 +139,13 @@ Add the **ContactWise WhatsApp** node and pick **Send message**.
 |---|---|
 | Phone Number | The WhatsApp number you send from. Pick it from the list, or enter its phone number ID |
 | Recipient Phone Number | Any country, in international format: country code then number, e.g. `+44 7700 900123` or `919876543210`. Spaces, dashes, dots, brackets and a leading `+` are ignored |
-| Message Type | Text, Image, Video, Document, Audio, Location or Contact |
+| Message Type | Text, Image, Video, Document, Audio, Location, Contact or Interactive |
 
 - **Text:** 'Text' (up to 4,096 characters). *Additional Fields › Show URL Preview* shows a preview of the first link.
 - **Image, Video, Document, Audio:** 'Media Source' is a public **Link**, a **Media ID** from *Media › Upload media*, or a **Binary File** from an earlier node, which is uploaded for you first. Images, videos and documents can have a caption, and documents a filename. Audio has no caption: WhatsApp doesn't support one.
 - **Location:** 'Latitude' and 'Longitude', with an optional 'Location Name' and 'Location Address'.
 - **Contact:** a contact card. 'Formatted Name' is required; names, phones, emails, addresses, organization, URLs and birthday are optional.
+- **Interactive:** a message the recipient answers with a tap. 'Interactive Type' is **Buttons** (1–3 reply buttons, each with an 'ID' and a 'Title' of up to 20 characters) or **List** (a 'Menu Button Text' that opens 1–10 'Rows', each with an 'ID', a 'Title' of up to 24 characters and an optional 'Description'). 'Body' is the message text. *Additional Fields* adds a 'Header', a 'Footer', and a list's 'Section Title'. Like any free-form message, it can only be sent within the 24-hour window. Interactive needs node version 1.1, so add a new ContactWise WhatsApp node to a workflow built before version 0.4.0 of this package.
 
 The output is WhatsApp's answer, with the message ID in `messages[0].id`:
 
@@ -242,6 +243,7 @@ Each change in an event becomes one item: WhatsApp's `value`, plus `field`, `wha
 - **Signed:** every event is signed by ContactWise. Requests that aren't correctly signed, or are more than 5 minutes old, are refused with 401 and start nothing.
 - **At least once, in any order:** an event can arrive twice, and a `read` status can arrive before `delivered`. If a workflow must not run twice for one event, deduplicate on `deliveryId`: it stays the same when an event is delivered again.
 - **Reply to a message** by sending to `{{ $json.messages[0].from }}` from `{{ $json.metadata.phone_number_id }}`. A reply is inside the 24-hour window, so it can be free-form.
+- **Buttons and lists:** when someone taps a reply button or picks a list row, the message arrives with `type` `interactive`. The button's 'ID' is in `{{ $json.messages[0].interactive.button_reply.id }}`, and a row's in `{{ $json.messages[0].interactive.list_reply.id }}`. Route on the ID with a Switch node.
 - **Listen for test event** in the editor registers a temporary webhook, removed when listening stops.
 - If a workflow was deactivated while n8n was down, ContactWise disables its webhook after 24 hours of failed deliveries. Deactivate and activate the workflow to register a new one.
 

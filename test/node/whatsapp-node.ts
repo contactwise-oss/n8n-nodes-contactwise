@@ -26,6 +26,8 @@ export function runWhatsApp(
 		input?: IDataObject[];
 		inputItems?: INodeExecutionData[];
 		continueOnFail?: boolean;
+		/** The node's `typeVersion`. Defaults to the latest version. */
+		typeVersion?: number;
 	} = {},
 ) {
 	return runNode({
@@ -47,5 +49,6 @@ export function runWhatsApp(
 		input: overrides.input,
 		inputItems: overrides.inputItems,
 		continueOnFail: overrides.continueOnFail,
+		typeVersion: overrides.typeVersion,
 	});
 }

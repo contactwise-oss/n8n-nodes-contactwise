@@ -2,6 +2,8 @@ import type { IDataObject, IExecuteFunctions, INodeProperties } from 'n8n-workfl
 
 import { postMessage, resolveSender, uploadBinaryMedia } from './common';
 import { contactContent, contactDescription } from './contact';
+import { interactiveContent, interactiveDescription } from './interactive';
+import type { InteractiveAdditionalFields } from './interactive';
 
 const showForSend = { show: { resource: ['message'], operation: ['send'] } };
 const showForType = (types: string[]) => ({
@@ -11,6 +13,9 @@ const showForType = (types: string[]) => ({
 const MEDIA_TYPES = ['image', 'video', 'document', 'audio'];
 /** Meta supports captions on these media types only; audio never takes one. */
 const CAPTIONED_TYPES = ['image', 'video', 'document'];
+
+/** Interactive messages arrived in v1.1 (TIN-61). v1 keeps its published list of types. */
+const V1_1 = { '@version': [{ _cnd: { gte: 1.1 } }] };
 
 export const sendDescription: INodeProperties[] = [
 	{
@@ -28,7 +33,29 @@ export const sendDescription: INodeProperties[] = [
 			{ name: 'Video', value: 'video' },
 		],
 		default: 'text',
-		displayOptions: showForSend,
+		displayOptions: { show: { ...showForSend.show, '@version': [1] } },
+	},
+	{
+		displayName: 'Message Type',
+		name: 'messageType',
+		type: 'options',
+		noDataExpression: true,
+		options: [
+			{ name: 'Audio', value: 'audio' },
+			{ name: 'Contact', value: 'contacts', description: 'A contact card' },
+			{ name: 'Document', value: 'document' },
+			{ name: 'Image', value: 'image' },
+			{
+				name: 'Interactive',
+				value: 'interactive',
+				description: 'Reply buttons or a list the recipient can tap',
+			},
+			{ name: 'Location', value: 'location' },
+			{ name: 'Text', value: 'text' },
+			{ name: 'Video', value: 'video' },
+		],
+		default: 'text',
+		displayOptions: { show: { ...showForSend.show, ...V1_1 } },
 	},
 	{
 		displayName: 'Text',
@@ -111,6 +138,7 @@ export const sendDescription: INodeProperties[] = [
 		displayOptions: showForType(['location']),
 	},
 	...contactDescription(showForType(['contacts'])),
+	...interactiveDescription({ show: { ...showForType(['interactive']).show, ...V1_1 } }),
 	{
 		displayName: 'Additional Fields',
 		name: 'additionalFields',
@@ -136,6 +164,22 @@ export const sendDescription: INodeProperties[] = [
 				displayOptions: { show: { '/messageType': ['document'] } },
 			},
 			{
+				displayName: 'Footer',
+				name: 'interactiveFooter',
+				type: 'string',
+				default: '',
+				description: 'Small text under the message, up to 60 characters',
+				displayOptions: { show: { '/messageType': ['interactive'] } },
+			},
+			{
+				displayName: 'Header',
+				name: 'interactiveHeader',
+				type: 'string',
+				default: '',
+				description: 'Bold text above the message, up to 60 characters',
+				displayOptions: { show: { '/messageType': ['interactive'] } },
+			},
+			{
 				displayName: 'Location Address',
 				name: 'locationAddress',
 				type: 'string',
@@ -152,6 +196,14 @@ export const sendDescription: INodeProperties[] = [
 				displayOptions: { show: { '/messageType': ['location'] } },
 			},
 			{
+				displayName: 'Section Title',
+				name: 'listSectionTitle',
+				type: 'string',
+				default: '',
+				description: 'A heading above the rows in the list, up to 24 characters',
+				displayOptions: { show: { '/messageType': ['interactive'], '/interactiveType': ['list'] } },
+			},
+			{
 				displayName: 'Show URL Preview',
 				name: 'previewUrl',
 				type: 'boolean',
@@ -160,11 +212,11 @@ export const sendDescription: INodeProperties[] = [
 				displayOptions: { show: { '/messageType': ['text'] } },
 			},
 		],
-		displayOptions: showForType(['text', 'location', ...CAPTIONED_TYPES]),
+		displayOptions: showForType(['text', 'location', 'interactive', ...CAPTIONED_TYPES]),
 	},
 ];
 
-interface AdditionalFields {
+interface AdditionalFields extends InteractiveAdditionalFields {
 	previewUrl?: boolean;
 	mediaCaption?: string;
 	mediaFilename?: string;
@@ -181,6 +233,9 @@ async function messageContent(
 	upload: () => Promise<string>,
 ): Promise<IDataObject | IDataObject[]> {
 	if (messageType === 'contacts') return contactContent.call(this, itemIndex);
+	if (messageType === 'interactive') {
+		return interactiveContent.call(this, itemIndex, additionalFields);
+	}
 	if (messageType === 'location') {
 		const location: IDataObject = {
 			latitude: this.getNodeParameter('latitude', itemIndex) as number,

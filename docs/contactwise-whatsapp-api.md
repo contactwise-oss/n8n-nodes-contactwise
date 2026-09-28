@@ -47,6 +47,34 @@ Used by the 'Phone Number' dropdown.
 | `location` | `{ "latitude", "longitude", "name", "address" }` | |
 | `contacts` | `[ { "name": { "formatted_name", … }, "addresses", "birthday", "emails", "org", "phones", "urls" } ]` | `name.formatted_name` is required |
 | `template` | `{ "name", "language": { "code" }, "components": [ … ] }` | Send Template, TIN-41 |
+| `interactive` | `{ "type": "button" \| "list", "header"?, "body": { "text" }, "footer"?, "action": { … } }` | Reply buttons and lists (TIN-61), below |
+
+**Interactive messages** (TIN-61, from Meta's Cloud API reference, checked 2026-09-28):
+
+```json
+{ "type": "interactive", "interactive": {
+    "type": "button",
+    "header": { "type": "text", "text": "Sunrise Bakery" },
+    "body": { "text": "What would you like to know?" },
+    "footer": { "text": "Tap a button" },
+    "action": { "buttons": [ { "type": "reply", "reply": { "id": "timings", "title": "Show timings" } } ] } } }
+```
+
+```json
+{ "type": "interactive", "interactive": {
+    "type": "list",
+    "body": { "text": "Pick an option" },
+    "action": { "button": "Menu", "sections": [ { "title": "Shows", "rows": [ { "id": "timings", "title": "Show timings", "description": "Friday to Sunday" } ] } ] } } }
+```
+
+| Field | Buttons | List |
+|---|---|---|
+| `header` (optional) | `{ "type": "text", "text" }`, text max 60. Meta also allows image, video and document headers; the node sends text only | Text only, max 60 |
+| `body.text` | Required, max 1024 | Required, max 4096 |
+| `footer.text` (optional) | Max 60 | Max 60 |
+| `action` | `buttons`: 1–3 of `{ "type": "reply", "reply": { "id" (max 256), "title" (max 20) } }` | `button` (menu button text, max 20), `sections`: up to 10, with up to 10 `rows` in total. Each row: `id` (max 200), `title` (max 24), `description` (optional, max 72). A section `title` (max 24) is required when there's more than one section; the node sends one section |
+
+**A tap arrives at the Trigger** as an incoming message with `type: "interactive"`: `interactive: { "type": "button_reply", "button_reply": { "id", "title" } }` for a button, or `{ "type": "list_reply", "list_reply": { "id", "title", "description" } }` for a list row. Interactive messages are free-form, so they're only allowed inside the 24-hour window.
 
 `to`: the international number as digits only, 8–15 digits, no `+` (FR-W2). There's no country restriction and no DLT.
 

@@ -11,7 +11,7 @@ One npm package holds every ContactWise node and a **single shared credential ty
 | Credential `ContactWise API` | `contactWiseApi` | 1 |
 | Node `ContactWise SMS` | `contactWiseSms` | 1 |
 | Node `ContactWise SMS Trigger` | `contactWiseSmsTrigger` | Later (blocked: no webhook-registration API yet, TIN-26). Renamed from `ContactWise Trigger` on 2026-09-22, before anything was published |
-| Node `ContactWise WhatsApp` | `contactWiseWhatsApp` | M3: Message → Send (TIN-39), Send Template (TIN-41), Send and Wait (TIN-43); Media → Upload and Delete (TIN-42), Download (TIN-55) |
+| Node `ContactWise WhatsApp` | `contactWiseWhatsApp` | M3: Message → Send (TIN-39; Interactive from v1.1, TIN-61), Send Template (TIN-41), Send and Wait (TIN-43); Media → Upload and Delete (TIN-42), Download (TIN-55) |
 | Node `ContactWise WhatsApp Trigger` | `contactWiseWhatsAppTrigger` | M3 (TIN-40): registers a ContactWise webhook subscription (TIN-34) on activation, verifies each signed delivery |
 
 Internal names (node `name`, credential `name`, parameter `name`s, option `value`s) are permanent once published, because saved workflows store them.
@@ -33,6 +33,7 @@ nodes/ContactWiseWhatsApp/resources/message/send.ts            # Message → Sen
 nodes/ContactWiseWhatsApp/resources/message/sendTemplate.ts    # Message → Send Template: 'Template' locator, header/body/button components
 nodes/ContactWiseWhatsApp/resources/message/sendAndWait.ts     # Message → Send and Wait for Response: message + signed links, wait, resume webhook
 nodes/ContactWiseWhatsApp/resources/message/contact.ts         # contact card parameters and Meta's `contacts` body
+nodes/ContactWiseWhatsApp/resources/message/interactive.ts     # Message Type → Interactive (v1.1): reply buttons and lists, count checks, Meta's `interactive` body
 nodes/ContactWiseWhatsApp/resources/media/media.ts             # Media → Upload (multipart, returns the media ID), Delete, and Download (binary, via the gateway's streaming route)
 nodes/ContactWiseWhatsApp/methods/listSearch.ts                # resource locator lists: phone numbers; approved templates, paged by Meta's cursor
 nodes/ContactWiseWhatsApp/shared/recipient.ts                  # normalizeRecipientPhoneNumber(): international, 8–15 digits, digits only
@@ -103,7 +104,7 @@ With Continue On Fail, a failed item's output is `{ error: <message>, errorDetai
 - **Non-breaking** changes (a new optional parameter or option) use light versioning (`version: [1, 1.1]`), gating new fields with `displayOptions` on `@version`.
 - **Breaking** changes get a new node version. Older versions must keep working for saved workflows.
 - Full versioning (`VersionedNodeType` with `v1/`, `v2/` folders) is only available to programmatic-style nodes.
-- Light versions so far: ContactWise WhatsApp Trigger `1.1` (TIN-60), which turns message status updates off by default. The node reads `this.getNode().typeVersion` in `webhook()`, and the fields are gated with `'@version'` `displayOptions`.
+- Light versions so far: ContactWise WhatsApp Trigger `1.1` (TIN-60), which turns message status updates off by default, and ContactWise WhatsApp `1.1` (TIN-61), which adds Message Type → Interactive. An option can't have its own `displayOptions`, so v1.1's 'Message Type' is a second `messageType` parameter with the extra option, shown for `@version` 1.1 and later, while v1 keeps the published list. The node reads `this.getNode().typeVersion` in `webhook()`, and the fields are gated with `'@version'` `displayOptions`.
 
 ## Test seams
 
