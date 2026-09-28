@@ -137,19 +137,7 @@ export const sendTemplateDescription: INodeProperties[] = [
 			{
 				displayName: 'Component',
 				name: 'component',
-				// eslint-disable-next-line n8n-nodes-base/node-param-fixed-collection-type-unsorted-items -- Type decides which of the other fields show, so it goes first
 				values: [
-					{
-						displayName: 'Type',
-						name: 'type',
-						type: 'options',
-						options: [
-							{ name: 'Body', value: 'body' },
-							{ name: 'Button', value: 'button' },
-							{ name: 'Header', value: 'header' },
-						],
-						default: 'body',
-					},
 					{
 						displayName: 'Button Index',
 						name: 'buttonIndex',
@@ -208,6 +196,17 @@ export const sendTemplateDescription: INodeProperties[] = [
 						default: {},
 						displayOptions: { show: { type: ['body'] } },
 						options: [{ displayName: 'Parameter', name: 'parameter', values: parameterValues }],
+					},
+					{
+						displayName: 'Type',
+						name: 'type',
+						type: 'options',
+						options: [
+							{ name: 'Body', value: 'body' },
+							{ name: 'Button', value: 'button' },
+							{ name: 'Header', value: 'header' },
+						],
+						default: 'body',
 					},
 				],
 			},

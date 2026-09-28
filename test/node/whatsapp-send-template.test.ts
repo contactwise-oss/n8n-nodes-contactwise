@@ -31,11 +31,15 @@ function templateOf(body: unknown) {
 }
 
 describe('ContactWise WhatsApp: Message → Send Template', () => {
-	it("shows a component's Type before the fields that depend on it", () => {
+	// n8n's package scan ignores inline lint exceptions and requires fixedCollection values sorted
+	// by display name, so 'Type' can't be first (TIN-59, reversing TIN-56).
+	it("orders a component's fields by display name, as n8n's package scan requires", () => {
 		const components = sendTemplateDescription.find(({ name }) => name === 'components');
-		const component = (components?.options as Array<{ values: Array<{ name: string }> }>)[0];
+		const component = (components?.options as Array<{ values: Array<{ displayName: string }> }>)[0];
+		const names = component.values.map(({ displayName }) => displayName);
 
-		expect(component.values[0].name).toBe('type');
+		expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+		expect(names[names.length - 1]).toBe('Type');
 	});
 
 	it('sends the template name and language code, with no components when none are set', async () => {
