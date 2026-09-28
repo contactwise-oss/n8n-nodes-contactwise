@@ -52,7 +52,13 @@ export interface RunWebhookOptions {
 	method: 'GET' | 'POST';
 	query?: Record<string, string>;
 	body?: IDataObject;
+	/**
+	 * The body bytes as received. n8n keeps them on `req.rawBody`. When set without `body`, the
+	 * parsed body is derived from it, as n8n's body parser does for JSON.
+	 */
+	rawBody?: Buffer;
 	headers?: Record<string, string>;
+	staticData?: IDataObject;
 	credentialTypes?: ICredentialType[];
 	credentials?: Record<string, ICredentialDataDecryptedObject>;
 }
@@ -75,7 +81,8 @@ export async function runWebhook(options: RunWebhookOptions): Promise<RunWebhook
 		httpRequest: {
 			method: options.method,
 			query: options.query ?? {},
-			body: options.body ?? {},
+			body: options.body ?? (options.rawBody ? JSON.parse(options.rawBody.toString('utf8')) : {}),
+			...(options.rawBody && { rawBody: options.rawBody }),
 			headers: {
 				'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Safari/604.1',
 				...options.headers,

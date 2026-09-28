@@ -12,7 +12,7 @@ One npm package holds every ContactWise node and a **single shared credential ty
 | Node `ContactWise SMS` | `contactWiseSms` | 1 |
 | Node `ContactWise SMS Trigger` | `contactWiseSmsTrigger` | Later (blocked: no webhook-registration API yet, TIN-26). Renamed from `ContactWise Trigger` on 2026-09-22, before anything was published |
 | Node `ContactWise WhatsApp` | `contactWiseWhatsApp` | M3: Message → Send (TIN-39), Send Template (TIN-41), Send and Wait (TIN-43); Media → Upload and Delete (TIN-42), Download (TIN-55) |
-| Node `ContactWise WhatsApp Trigger` | `contactWiseWhatsAppTrigger` | M3 (TIN-40; blocked by webhook subscriptions, TIN-34) |
+| Node `ContactWise WhatsApp Trigger` | `contactWiseWhatsAppTrigger` | M3 (TIN-40): registers a ContactWise webhook subscription (TIN-34) on activation, verifies each signed delivery |
 
 Internal names (node `name`, credential `name`, parameter `name`s, option `value`s) are permanent once published, because saved workflows store them.
 
@@ -38,6 +38,9 @@ nodes/ContactWiseWhatsApp/methods/listSearch.ts                # resource locato
 nodes/ContactWiseWhatsApp/shared/recipient.ts                  # normalizeRecipientPhoneNumber(): international, 8–15 digits, digits only
 nodes/ContactWiseWhatsApp/shared/currencies.ts                 # active ISO 4217 codes, inlined (no currency-codes package)
 nodes/ContactWiseWhatsApp/shared/responsePage.ts               # Send and Wait pages: confirm, form, recorded; escaping, form parsing, bot check
+nodes/ContactWiseWhatsAppTrigger/ContactWiseWhatsAppTrigger.node.ts  # trigger: webhookMethods (checkExists, create, delete) and webhook(); + .node.json (codex)
+nodes/ContactWiseWhatsAppTrigger/shared/signature.ts            # verifyDelivery(): X-CW-Signature-256 over the raw body, 5-minute window, rotation
+nodes/ContactWiseWhatsAppTrigger/shared/events.ts               # deliveryToItems(): one item per entry[].changes[], message status filter
 .agents/                                       # n8n's generic agent docs (scaffold-owned, don't edit)
 .github/workflows/ci.yml, publish.yml          # lint + build; tag-triggered provenance publish
 ```
@@ -49,8 +52,9 @@ Code every node uses (transport, error mapping, retry policy) lives in `nodes/sh
 - native `FormData` multipart bodies, which n8n-core's request helper sends as `multipart/form-data`
 - the `ILoadOptionsFunctions` context, for dropdowns (TIN-39)
 - binary responses: `contactWiseApiDownload()` returns the bytes and the headers (TIN-55). Error bodies then arrive as bytes too, so they're parsed as JSON before the error mapping sees them
+- the `IHookFunctions` context, for a trigger's activation hooks (TIN-40)
 
-Query strings are built into the request path with `URLSearchParams` (TIN-41), so the transport has no query option. Still to come: the hook context (TIN-40).
+Query strings are built into the request path with `URLSearchParams` (TIN-41), so the transport has no query option.
 
 `interpretFailure()` reads two error formats:
 - **ContactWise:** `errors[]` with codes 1001 and 9000–9011, or problem+json.
@@ -60,6 +64,8 @@ The status rules come before either format: 429/503 are retryable, and 5xx, 502/
 - `sms` and `whatsapp` for sends, so WhatsApp errors never say "SMS"
 - `whatsapp-upload` and `whatsapp-delete` for media (TIN-42), so an upload or delete never reads as "sent". For example: "The media file may already have been uploaded", "Nothing was deleted".
 - `whatsapp-download` for Media → Download (TIN-55). A download has no side effects, so the channel is marked read-only: 502, 504 and broken connections are retried like 429/503, a 404 says the media file wasn't found, and nothing says "may already have been". A 500 is still not retried.
+
+- `whatsapp-webhook-list`, `whatsapp-webhook-create` and `whatsapp-webhook-delete` for the WhatsApp Trigger's subscription calls (TIN-40). These are marked `noRetry`: nothing is retried, not even a 429/503. n8n runs them on activation, so the user sees the error and activates again, and ContactWise asked for no client retries on these routes. A create that may have happened says so: a leftover subscription fails n8n's signature check and ContactWise disables it after 24 hours.
 
 A binary media upload inside Message → Send uses `whatsapp-upload` for its upload step.
 
@@ -106,7 +112,8 @@ These are the agreed public boundaries tests are written at. They count as "pre-
 2. **Node execution** (L2). Workflow JSON with credentials goes in; output items or errors, plus the HTTP request the ContactWise API received, come out. HTTP is faked only at the network boundary (nock). Internal modules are never mocked.
 3. **Dropdown lists** (L3, agreed 2026-09-25, TIN-39). A node's `methods.listSearch` method runs inside n8n-core's real `LoadOptionsContext`, the context n8n uses for a resource locator's 'From List' mode. Credentials are served from memory, and HTTP is faked with nock. The returned results, or the error, plus the HTTP request, come out.
 
-4. **Webhooks** (L4, agreed 2026-09-25, TIN-43). A node's `webhook()` runs inside n8n-core's real `WebhookContext` with a hand-built fake request and response. That's how n8n calls a resume URL or a trigger's webhook. The value `webhook()` returns (resume data, the response for n8n to send) comes out, plus what the node wrote to the response itself (status, headers, HTML).
+4. **Webhooks** (L4, agreed 2026-09-25, TIN-43). A node's `webhook()` runs inside n8n-core's real `WebhookContext` with a hand-built fake request and response. That's how n8n calls a resume URL or a trigger's webhook. The value `webhook()` returns (resume data, the response for n8n to send) comes out, plus what the node wrote to the response itself (status, headers, HTML). The request can carry `rawBody`, the bytes n8n keeps on `req.rawBody`, and the node's static data (TIN-40).
+5. **Trigger activation hooks** (L5, agreed 2026-09-28, TIN-40). One of a trigger's `webhookMethods.default` hooks (`checkExists`, `create`, `delete`) runs inside n8n-core's real `HookContext`, as n8n runs them on activation, deactivation and "Listen for test event". The node's static data goes in; the hook's result or error, the static data afterwards, and the HTTP requests (faked with nock) come out.
 
 The expected values for seams 2 and 3 come from the contract docs (`docs/contactwise-sms-api.md`, `docs/contactwise-whatsapp-api.md`), never from the implementation.
 
@@ -119,11 +126,12 @@ Tests live in a top-level `test/` folder, not next to the code. `tsconfig.json` 
 | `test/setup.ts` | Closes the network before every test (`nock.disableNetConnect()`) |
 | `test/harness/run-node.ts` | `runNode({ node, parameters, credentialTypes, credentials, input, inputItems, continueOnFail })` runs one node through n8n-core's `WorkflowExecute` and returns `{ items, error, run }`. `inputItems` passes full items, e.g. with binary data. `createTestWorkflow()` is the setup shared with L3 |
 | `test/harness/run-webhook.ts` | `runWebhook({ node, parameters, method, query, body, headers })` runs `webhook()` in n8n-core's `WebhookContext` (seam L4) and returns `{ result, response }` |
+| `test/harness/run-hook.ts` | `runHook({ node, hook, parameters, staticData, isTest, workflowName })` runs a trigger's activation hook in n8n-core's `HookContext` (seam L5) and returns `{ result, error, staticData }`. The webhook URLs it builds are exported (`PRODUCTION_WEBHOOK_URL`, `TEST_WEBHOOK_URL`) |
 | `test/harness/run-list-search.ts` | `runListSearch({ node, method, parameter, credentialTypes, credentials })` runs a list-search method in n8n-core's `LoadOptionsContext` (seam L3) |
 | `test/harness/credentials-helper.ts` | Serves credentials from memory and applies `authenticate` (function or generic `={{$credentials.x}}`) |
 | `test/harness/probe-node.ts` | Test-only node and credential that prove the harness itself |
 | `test/fixtures/contactwise-api.ts` | `interceptSend(sendScenarios.x())`: a fake API with one scenario per error-table row. It records each request body and headers. |
-| `test/fixtures/whatsapp-api.ts` | `interceptGateway(method, graphPath, whatsAppScenarios.x())`: a fake WhatsApp gateway (`/v1/waba-direct/{tenantId}/…`) with Meta-shaped responses and errors. It records each request body (multipart as raw text) and headers |
+| `test/fixtures/whatsapp-api.ts` | `interceptGateway(method, graphPath, whatsAppScenarios.x())`: a fake WhatsApp gateway (`/v1/waba-direct/{tenantId}/…`) with Meta-shaped responses and errors. It records each request body (multipart as raw text) and headers. `interceptWebhooks(method, subscriptionId, webhookScenarios.x())` fakes the subscription routes (`/v1/whatsapp/{tenantId}/webhooks`) |
 
 Harness facts found in the spike (2026-09-22):
 - `vitest.config.mjs` aliases `n8n-workflow` to its **CommonJS** build. n8n loads community nodes with `require()`, so node code and n8n-core must share one n8n-workflow instance. With two copies, `error instanceof NodeApiError` is false for errors n8n-core creates. A harness test guards this.
@@ -139,6 +147,9 @@ Harness facts found in the spike (2026-09-22):
 | Node style for `ContactWise SMS` | **Programmatic** (2026-09-22) | Needed for selective retry (429/503 only, honouring `Retry-After`) and direct unit testing of `execute()`, and it keeps full versioning available. The Trigger must be programmatic anyway. Trade-off accepted: more code than declarative, which n8n calls the faster route to approval. |
 | Node style for `ContactWise WhatsApp` and its trigger | **Programmatic** (TIN-30, 2026-09-22) | Same reasons as SMS: selective retry and full versioning. Trigger nodes must be programmatic anyway. |
 | WhatsApp API contract | **`docs/contactwise-whatsapp-api.md`** (TIN-37, 2026-09-25) | The gateway is a transparent proxy over Meta's Graph API v23.0 at `/v1/waba-direct/{tenantId}/{**catch-all}`. Request, response and error shapes are Meta's. |
+| WhatsApp Trigger signature check | **Raw body only** (TIN-40, 2026-09-28) | `verifyDelivery()` HMACs `req.rawBody`, the bytes n8n keeps for every webhook request. The parsed body is never re-serialised to verify: ContactWise writes emoji as escaped surrogate pairs and `JSON.stringify` doesn't, so a real delivery with an emoji would fail. No raw body, no stored secret, or a bad signature or timestamp: 401 and no workflow run. It starts from the TypeScript function in the TIN-34 integration contract. |
+| WhatsApp Trigger subscription lifecycle | **Replace, never repair** (TIN-40, 2026-09-28) | `checkExists` is true only if the stored subscription is listed, `active`, for the current webhook URL and the same events, and the secret is stored. Otherwise it deletes the subscription (404 counts as deleted) and `create` registers a new one. ContactWise has no re-enable route for a subscription disabled after 24 h of failed deliveries. `delete` treats 404 as done and returns false (keeping the ID) on any other failure. |
+| WhatsApp Trigger in n8n 2.40 | **Observed live** (TIN-40, 2026-09-28) | Activation goes through n8n's publication outbox, so the activate call returns before the hooks run. A failed `checkExists` or `create` shows as the workflow's publication status `failed`, with the error's **message only** (no description), so each message must make sense on its own. n8n doesn't run `checkExists` again on restart: a subscription removed while n8n was down is replaced only when the workflow is deactivated and activated again. |
 | WhatsApp Send and Wait | **Rebuilt on `n8n-workflow` primitives** (TIN-30, 2026-09-22) | A community node can't import nodes-base's `sendAndWait` helpers. The rebuild uses `getSignedResumeUrl`, `putExecutionToWait`, `WAIT_INDEFINITELY` and `SEND_AND_WAIT_OPERATION`. |
 | Send and Wait response pages | **The node serves its own pages** (TIN-43 spike, 2026-09-25) | A webhook can call n8n's `form-trigger` view, but its data comes from nodes-base helpers a community node can't import, and the sandboxing CSP header comes from `n8n-core`. So `shared/responsePage.ts` renders self-contained pages: HTML-escaped, with no JavaScript or external assets, served with a strict CSP. Custom Form has text, textarea, number, email, date, dropdown and checkbox fields, with no file uploads. |
 | Answering a Send and Wait link | **GET shows, POST records** (TIN-43, 2026-09-25) | Opening a link only shows a page. The answer is recorded, and the workflow resumed, only when the page's form is submitted, so link previews (WhatsApp, Slack, Teams) can't approve anything. A POST from a known bot user agent is ignored too. This costs the recipient one extra tap compared with the official node. |

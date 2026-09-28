@@ -2,6 +2,7 @@ import { NodeApiError, sleep } from 'n8n-workflow';
 import type {
 	IDataObject,
 	IExecuteFunctions,
+	IHookFunctions,
 	IHttpRequestMethods,
 	ILoadOptionsFunctions,
 	IN8nHttpFullResponse,
@@ -85,7 +86,7 @@ function parseBody(body: unknown): unknown {
  * the channel does (an SMS, a WhatsApp message, a media download).
  */
 async function requestWithRetry(
-	this: IExecuteFunctions | ILoadOptionsFunctions,
+	this: IExecuteFunctions | ILoadOptionsFunctions | IHookFunctions,
 	request: ContactWiseRequest,
 	itemIndex: number | undefined,
 	channel: Channel,
@@ -137,12 +138,12 @@ async function requestWithRetry(
  * which names what the channel sends (an SMS or a WhatsApp message).
  */
 export async function contactWiseApiRequest(
-	this: IExecuteFunctions | ILoadOptionsFunctions,
+	this: IExecuteFunctions | ILoadOptionsFunctions | IHookFunctions,
 	method: IHttpRequestMethods,
 	path: string,
 	/** `undefined` for requests without a body, e.g. GET. */
 	body: IDataObject | FormData | undefined,
-	/** The input item, or `undefined` outside item execution (dropdowns). */
+	/** The input item, or `undefined` outside item execution (dropdowns, trigger hooks). */
 	itemIndex: number | undefined,
 	channel: Channel,
 ): Promise<IDataObject> {

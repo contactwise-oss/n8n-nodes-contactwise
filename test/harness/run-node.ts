@@ -53,6 +53,11 @@ interface TestWorkflowOptions {
 	credentials?: Record<string, ICredentialDataDecryptedObject>;
 	continueOnFail?: boolean;
 	typeVersion?: number;
+	/** The node's static data (`getWorkflowStaticData('node')`), e.g. a stored webhook secret. */
+	staticData?: IDataObject;
+	workflowName?: string;
+	/** Set on trigger nodes by n8n; the production webhook URL is built from it. */
+	webhookId?: string;
 }
 
 /**
@@ -85,10 +90,13 @@ export function createTestWorkflow(options: TestWorkflowOptions) {
 			Object.keys(credentials).map((type) => [type, { id: `${type}-id`, name: `${type} account` }]),
 		),
 		...(options.continueOnFail && { onError: 'continueRegularOutput' as const }),
+		...(options.webhookId && { webhookId: options.webhookId }),
 	};
 
 	const workflow = new Workflow({
 		id: 'test-workflow',
+		name: options.workflowName,
+		staticData: options.staticData ? { [`node:${NODE_NAME}`]: options.staticData } : undefined,
 		nodes: [node],
 		connections: {},
 		nodeTypes,

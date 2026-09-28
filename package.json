@@ -53,7 +53,8 @@
 		],
 		"nodes": [
 			"dist/nodes/ContactWiseSms/ContactWiseSms.node.js",
-			"dist/nodes/ContactWiseWhatsApp/ContactWiseWhatsApp.node.js"
+			"dist/nodes/ContactWiseWhatsApp/ContactWiseWhatsApp.node.js",
+			"dist/nodes/ContactWiseWhatsAppTrigger/ContactWiseWhatsAppTrigger.node.js"
 		]
 	},
 	"devDependencies": {

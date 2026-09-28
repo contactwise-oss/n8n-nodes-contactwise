@@ -50,7 +50,7 @@ Used by the 'Phone Number' dropdown.
 
 `to`: the international number as digits only, 8–15 digits, no `+` (FR-W2). There's no country restriction and no DLT.
 
-**200:** `{ "messaging_product": "whatsapp", "contacts": [ { "input", "wa_id" } ], "messages": [ { "id" } ] }`. A 200 means Meta **accepted** the message, not that it was delivered. Delivery arrives later as a status webhook (TIN-40).
+**200:** `{ "messaging_product": "whatsapp", "contacts": [ { "input", "wa_id" } ], "messages": [ { "id" } ] }`. A 200 means Meta **accepted** the message, not that it was delivered. Delivery arrives later as a status event, through the ContactWise WhatsApp Trigger (TIN-40).
 
 Outside the 24-hour customer service window, only templates can be sent. Free-form messages then fail with 131047.
 
@@ -100,9 +100,25 @@ If the stream breaks after the headers, the gateway aborts the connection, so th
 - **No side effects:** a download changes nothing, so the node retries 429, 503, 502, 504 and network errors (see Errors).
 - **Routing confirmed (2026-09-26):** `api.contactwise.io` routes `/v1/whatsapp/` to the gateway. Without a key it returns 401 `{ "error": "Missing X-CW-Api-Key header." }`.
 
-### Not built yet (API team)
+### Webhook subscriptions and signed forwarding (TIN-34)
 
-- **Webhook subscriptions and signed forwarding** for the trigger: TIN-34. Not designed yet.
+Live since 2026-09-28. The source of truth is the Linear document "Integration contract: ContactWise WhatsApp Trigger (TIN-34 forwarding)", with the spec "Spec: WhatsApp webhook subscriptions and signed forwarding (TIN-34)". What the WhatsApp Trigger relies on:
+
+| Route (gateway, `X-CW-Api-Key`) | Result |
+|---|---|
+| `POST /v1/whatsapp/{tenantId}/webhooks` `{ url, fields, description }` | 201 with `id`, `url`, `fields`, `description`, `status`, `createdAt` and `secret` (only here) |
+| `GET /v1/whatsapp/{tenantId}/webhooks` | 200 `{ "data": [...] }`, newest first, no secrets |
+| `DELETE /v1/whatsapp/{tenantId}/webhooks/{id}` | 204, or 404 if missing or another tenant's |
+
+- `url` must be public `https://` (any port). localhost, `http://`, private, loopback and link-local addresses, `.local`/`.internal`/`.home.arpa`, single-label hosts, credentials in the URL and unresolvable hosts get 400 `{ "error": "<the problem>" }`.
+- 50 subscriptions per tenant (409 for the 51st; disabled ones count). 120 requests per minute per tenant across these routes. The same URL twice makes two subscriptions with different secrets.
+- `status` is `active` or `disabled`. A subscription with no 2xx for 24 hours is disabled for good: there's no re-enable route.
+
+Each delivery is one `POST` per Meta event (a batch is never split) with Meta's envelope `{ object, entry: [ { id, changes: [ { field, value } ] } ] }`, filtered to the tenant and the subscribed fields. Unmodelled properties such as `entry[].time` pass through. Headers: `X-CW-Signature-256`, `X-CW-Timestamp` (unix seconds), `X-CW-Webhook-Id`, `X-CW-Delivery-Id` (stable across retries and Meta re-deliveries), `User-Agent: ContactWise-Webhooks/1.0`.
+
+- **Signature:** `"sha256=" + lowercase hex(HMAC-SHA256(secret, timestamp + "." + raw body))`. The key is the whole `whsec_…` string. During rotation the header holds `sha256=<new>,sha256=<old>`. Test vector: secret `whsec_test`, timestamp `1790000000`, body `{"object":"whatsapp_business_account","entry":[]}` → `sha256=4d061e812335c3afeac2dc33f8be8e2ee7a7f6e95a104a57fefc05b74edf8bb9`.
+- **Raw body:** ContactWise writes characters outside the BMP (emoji) as escaped surrogate pairs, so re-serialising the parsed body changes the bytes and fails the check.
+- **Delivery:** any 2xx within 10 s is success. Retries after about 1 min, 5 min, 30 min, 2 h and 6 h, then every 6 h up to 24 h. A 3xx is a failure and isn't followed. At least once, in no particular order.
 
 ## Errors
 

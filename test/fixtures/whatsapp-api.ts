@@ -195,3 +195,60 @@ function interceptPath(method: 'get' | 'post' | 'delete', path: string, scenario
 
 	return { scope, requests };
 }
+
+/** The gateway's webhook subscription routes (TIN-34), outside the `/v1/waba-direct/` proxy. */
+export const webhooksPath = (subscriptionId?: string, tenantId = TEST_TENANT_ID) =>
+	`/v1/whatsapp/${tenantId}/webhooks${subscriptionId ? `/${subscriptionId}` : ''}`;
+
+export interface Subscription {
+	id: string;
+	url: string;
+	fields: string[];
+	description?: string | null;
+	status: 'active' | 'disabled';
+	createdAt?: string;
+}
+
+/** Responses of the subscription routes, as recorded in the TIN-34 spec's Status section. */
+export const webhookScenarios = {
+	/** 201 from `POST .../webhooks`: the subscription and its secret, returned only here. */
+	created: (subscription: Subscription, secret: string): GatewayScenario => ({
+		status: 201,
+		body: { ...subscription, secret, createdAt: '2026-09-28T10:15:00.123Z' },
+	}),
+	/** 200 from `GET .../webhooks`: newest first, never with secrets. */
+	listed: (subscriptions: Subscription[]): GatewayScenario => ({
+		status: 200,
+		body: { data: subscriptions },
+	}),
+	/** 204 from `DELETE .../webhooks/{id}`. */
+	deleted: (): GatewayScenario => ({ status: 204, body: '' }),
+	/** 404 from `DELETE`: missing, or another tenant's; the same response for both. */
+	notFound: (): GatewayScenario => ({
+		status: 404,
+		body: { error: 'Webhook subscription not found.' },
+	}),
+	/** 400 naming the problem, e.g. a private or non-https URL. */
+	rejected: (error: string): GatewayScenario => ({ status: 400, body: { error } }),
+	/** 409 for the 51st subscription. */
+	limitReached: (): GatewayScenario => ({
+		status: 409,
+		body: { error: 'This tenant already has 50 webhook subscriptions.' },
+	}),
+	invalidKey: (): GatewayScenario => ({ status: 401, body: { error: 'Invalid API key.' } }),
+	rateLimited: (): GatewayScenario => ({
+		status: 429,
+		body: { error: 'Too many requests.' },
+		headers: { 'Retry-After': '10' },
+	}),
+};
+
+/** Answers the next call to a webhook subscription route with `scenario`. */
+export function interceptWebhooks(
+	method: 'get' | 'post' | 'delete',
+	subscriptionId: string | undefined,
+	scenario: GatewayScenario,
+	tenantId = TEST_TENANT_ID,
+) {
+	return interceptPath(method, webhooksPath(subscriptionId, tenantId), scenario);
+}

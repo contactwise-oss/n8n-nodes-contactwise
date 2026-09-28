@@ -137,13 +137,19 @@ function supportTraceHint(traceId: string | undefined): string {
 	return traceId ? ` If you contact ContactWise support, quote trace ID ${traceId}.` : '';
 }
 
-/** What a call does: send an SMS or WhatsApp message, or upload, delete or download a WhatsApp media file. */
+/**
+ * What a call does: send an SMS or WhatsApp message; upload, delete or download a WhatsApp media
+ * file; or list, register or remove the WhatsApp Trigger's webhook subscription.
+ */
 export type Channel =
 	| 'sms'
 	| 'whatsapp'
 	| 'whatsapp-upload'
 	| 'whatsapp-delete'
-	| 'whatsapp-download';
+	| 'whatsapp-download'
+	| 'whatsapp-webhook-list'
+	| 'whatsapp-webhook-create'
+	| 'whatsapp-webhook-delete';
 
 interface Wording {
 	/** "The SMS may already have been …" */
@@ -169,7 +175,16 @@ interface Wording {
 	 * anything twice, so it's retried like a 429/503, and the wording names what failed instead.
 	 */
 	readOnly?: { failed: string; notFound: string };
+	/**
+	 * Set when n8n runs the call (workflow activation). The call is never retried, not even a
+	 * 429/503: the user sees the error and activates again, and ContactWise asks for no retries.
+	 */
+	noRetry?: boolean;
+	/** What to do again after a 429/503. Defaults to running the workflow again. */
+	retryAdvice?: string;
 }
+
+const WEBHOOK_FIX = "Check ContactWise's response above, then activate the workflow again.";
 
 const SEND_ADVICE = (thing: string) =>
 	`Don't send this item again automatically: the recipient may get the ${thing} twice. Check delivery reports first.`;
@@ -237,10 +252,59 @@ const CHANNEL_WORDING: Record<Channel, Wording> = {
 				"Check the 'Media ID'. WhatsApp keeps media for 30 days, and you can only download media from your own WhatsApp Business Account.",
 		},
 	},
+	'whatsapp-webhook-list': {
+		theThing: 'The webhook list',
+		things: 'webhooks',
+		done: 'checked',
+		request: 'the webhook check',
+		metaRequest: 'the webhook check',
+		nothingDone: 'Nothing was changed.',
+		unavailable: "ContactWise can't check webhooks right now",
+		unknownAdvice: 'Wait a few minutes and activate the workflow again.',
+		metaGeneralFix: WEBHOOK_FIX,
+		readOnly: {
+			failed: "ContactWise's webhooks couldn't be checked",
+			notFound: "Check the 'Tenant ID' in the ContactWise API credential.",
+		},
+		noRetry: true,
+		retryAdvice: 'activate the workflow again',
+	},
+	'whatsapp-webhook-create': {
+		theThing: 'The webhook',
+		things: 'webhooks',
+		done: 'registered',
+		request: 'the webhook registration',
+		metaRequest: 'the webhook registration',
+		nothingDone: 'No webhook was registered.',
+		unavailable: "ContactWise can't register webhooks right now",
+		unknownAdvice:
+			"Activate the workflow again. If a webhook was registered, its events fail n8n's signature check and ContactWise disables it after 24 hours.",
+		metaGeneralFix: WEBHOOK_FIX,
+		noRetry: true,
+		retryAdvice: 'activate the workflow again',
+	},
+	'whatsapp-webhook-delete': {
+		theThing: 'The webhook',
+		things: 'webhooks',
+		done: 'removed',
+		request: 'the webhook removal',
+		metaRequest: 'the webhook removal',
+		nothingDone: 'Nothing was removed.',
+		unavailable: "ContactWise can't remove webhooks right now",
+		unknownAdvice:
+			"Activate the workflow again. If the webhook wasn't removed, its events fail n8n's signature check and ContactWise disables it after 24 hours.",
+		metaGeneralFix: WEBHOOK_FIX,
+		noRetry: true,
+		retryAdvice: 'activate the workflow again',
+	},
 };
 
 export function interpretFailure(call: FailedCall, channel: Channel = 'sms'): SendFailure {
-	const wording = CHANNEL_WORDING[channel];
+	const failure = interpret(call, CHANNEL_WORDING[channel]);
+	return CHANNEL_WORDING[channel].noRetry ? { ...failure, retryable: false } : failure;
+}
+
+function interpret(call: FailedCall, wording: Wording): SendFailure {
 	const { statusCode } = call;
 	const body = asObject(call.body);
 	const meta = metaErrorFrom(body);
@@ -312,7 +376,7 @@ export function interpretFailure(call: FailedCall, channel: Channel = 'sms'): Se
 				statusCode === 429
 					? `ContactWise is limiting how fast ${wording.things} can be ${wording.done}`
 					: wording.unavailable,
-			description: `${wording.nothingDone} Wait a few minutes and run the workflow again.`,
+			description: `${wording.nothingDone} Wait a few minutes and ${wording.retryAdvice ?? 'run the workflow again'}.`,
 		};
 	}
 

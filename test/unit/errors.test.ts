@@ -350,4 +350,49 @@ describe('interpretFailure', () => {
 			);
 		});
 	});
+
+	describe('webhook subscription channels (TIN-40)', () => {
+		it.each([
+			['whatsapp-webhook-create', 429],
+			['whatsapp-webhook-create', 503],
+			['whatsapp-webhook-delete', 503],
+			['whatsapp-webhook-list', 429],
+		] as const)('%s never retries a %s', (channel, statusCode) => {
+			expect(interpretFailure({ statusCode, body: {} }, channel).retryable).toBe(false);
+		});
+
+		it('never retries a failed connection while listing', () => {
+			const failure = interpretFailure(
+				{ networkError: { code: 'ECONNRESET' } },
+				'whatsapp-webhook-list',
+			);
+
+			expect(failure.retryable).toBe(false);
+			expect(failure.message).toBe(
+				"ContactWise's webhooks couldn't be checked: the connection to ContactWise failed",
+			);
+		});
+
+		it("shows the gateway's reason for refusing a webhook URL", () => {
+			const failure = interpretFailure(
+				{ statusCode: 400, body: { error: "url host 'localhost' is not allowed." } },
+				'whatsapp-webhook-create',
+			);
+
+			expect(failure.message).toBe(
+				"ContactWise rejected the webhook registration: url host 'localhost' is not allowed.",
+			);
+			expect(failure.description).toBe(
+				"No webhook was registered. Check ContactWise's response above, then activate the workflow again.",
+			);
+		});
+
+		it('says a registration that may have happened leaves a webhook that is disabled later', () => {
+			const failure = interpretFailure({ statusCode: 500, body: {} }, 'whatsapp-webhook-create');
+
+			expect(failure.message).toBe(
+				'The webhook may already have been registered: ContactWise returned an unexpected response',
+			);
+		});
+	});
 });
