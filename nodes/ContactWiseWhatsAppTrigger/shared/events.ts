@@ -5,13 +5,25 @@ function isObject(value: unknown): value is IDataObject {
 }
 
 /**
- * Applies the 'Message Status Updates' option to one change. Only `statuses` are filtered:
+ * The 'Message Status Updates' selection. 'all' anywhere in `selected` means every status. An
+ * empty selection means every status in Trigger v1, and none from v1.1 (TIN-60).
+ */
+export interface MessageStatusFilter {
+	selected: string[];
+	emptyMeans: 'all' | 'none';
+}
+
+function passesEveryStatus({ selected, emptyMeans }: MessageStatusFilter): boolean {
+	return selected.includes('all') || (selected.length === 0 && emptyMeans === 'all');
+}
+
+/**
+ * Applies the 'Message Status Updates' selection to one change. Only `statuses` are filtered:
  * inbound messages and other fields always pass. Returns undefined when nothing is left.
  */
-function filterStatuses(value: IDataObject, selected: string[]): IDataObject | undefined {
-	if (selected.length === 0 || selected.includes('all') || !Array.isArray(value.statuses)) {
-		return value;
-	}
+function filterStatuses(value: IDataObject, filter: MessageStatusFilter): IDataObject | undefined {
+	if (passesEveryStatus(filter) || !Array.isArray(value.statuses)) return value;
+	const { selected } = filter;
 	const statuses = (value.statuses as unknown[]).filter(
 		(status) => isObject(status) && selected.includes(String(status.status)),
 	);
@@ -33,7 +45,7 @@ function filterStatuses(value: IDataObject, selected: string[]): IDataObject | u
 export function deliveryToItems(
 	body: unknown,
 	deliveryId: string | undefined,
-	messageStatuses: string[],
+	messageStatuses: MessageStatusFilter,
 ): INodeExecutionData[] {
 	if (!isObject(body) || body.object !== 'whatsapp_business_account') return [];
 	if (!Array.isArray(body.entry)) return [];

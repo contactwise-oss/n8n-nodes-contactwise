@@ -12,10 +12,20 @@ import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workf
 import { FAILURE_CONTEXT_KEY, contactWiseApiRequest } from '../shared/transport';
 import type { SendFailure } from '../shared/errors';
 import { deliveryToItems } from './shared/events';
+import type { MessageStatusFilter } from './shared/events';
 import { verifyDelivery } from './shared/signature';
 
 /** ContactWise's limit for a subscription's `description` (TIN-34). */
 const MAX_DESCRIPTION_LENGTH = 200;
+
+const MESSAGE_STATUS_OPTIONS = [
+	{ name: 'All', value: 'all' },
+	{ name: 'Deleted', value: 'deleted' },
+	{ name: 'Delivered', value: 'delivered' },
+	{ name: 'Failed', value: 'failed' },
+	{ name: 'Read', value: 'read' },
+	{ name: 'Sent', value: 'sent' },
+];
 
 interface Subscription {
 	id?: string;
@@ -65,6 +75,21 @@ function sameFields(a: string[] = [], b: string[] = []): boolean {
 	return a.length === b.length && [...a].sort().join(',') === [...b].sort().join(',');
 }
 
+/**
+ * v1 keeps 'Message Status Updates' under Options, where empty or unset means all statuses. From
+ * v1.1 it's a top-level field and empty means none, so replying to 'Messages' can't loop (TIN-60).
+ */
+function messageStatusFilter(this: IWebhookFunctions): MessageStatusFilter {
+	if (this.getNode().typeVersion < 1.1) {
+		const options = this.getNodeParameter('options', {}) as { messageStatusUpdates?: string[] };
+		return { selected: options.messageStatusUpdates ?? ['all'], emptyMeans: 'all' };
+	}
+	return {
+		selected: this.getNodeParameter('messageStatusUpdates', []) as string[],
+		emptyMeans: 'none',
+	};
+}
+
 export class ContactWiseWhatsAppTrigger implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'ContactWise WhatsApp Trigger',
@@ -74,7 +99,7 @@ export class ContactWiseWhatsAppTrigger implements INodeType {
 			dark: 'file:../../icons/contactwise.dark.svg',
 		},
 		group: ['trigger'],
-		version: [1],
+		version: [1, 1.1],
 		subtitle:
 			'={{"Events: " + $parameter["updates"].map((field) => field.replace(/_/g, " ")).join(", ")}}',
 		description:
@@ -122,7 +147,8 @@ export class ContactWiseWhatsAppTrigger implements INodeType {
 					{
 						name: 'Messages',
 						value: 'messages',
-						description: 'Incoming messages, and status updates for messages you sent',
+						description:
+							'Incoming messages, and the status updates you select for messages you sent',
 					},
 					{ name: 'Phone Number Name Update', value: 'phone_number_name_update' },
 					{ name: 'Phone Number Quality Update', value: 'phone_number_quality_update' },
@@ -135,11 +161,39 @@ export class ContactWiseWhatsAppTrigger implements INodeType {
 				],
 			},
 			{
+				displayName: 'Message Status Updates',
+				name: 'messageStatusUpdates',
+				type: 'multiOptions',
+				default: [],
+				description:
+					'Which status updates for messages you sent start the workflow. Incoming messages always do.',
+				hint: 'Leave empty to start the workflow only for incoming messages',
+				options: MESSAGE_STATUS_OPTIONS,
+				displayOptions: {
+					show: { '@version': [{ _cnd: { gte: 1.1 } }], updates: ['messages'] },
+				},
+			},
+			{
+				displayName:
+					"If this workflow replies to messages, it also replies to the status updates of its own replies, which can send messages in a loop. Leave 'Message Status Updates' empty, or add an If node so the workflow replies only when the item has a messages field.",
+				name: 'statusLoopNotice',
+				type: 'notice',
+				default: '',
+				displayOptions: {
+					show: {
+						'@version': [{ _cnd: { gte: 1.1 } }],
+						updates: ['messages'],
+						messageStatusUpdates: [{ _cnd: { exists: true } }],
+					},
+				},
+			},
+			{
 				displayName: 'Options',
 				name: 'options',
 				type: 'collection',
 				placeholder: 'Add Option',
 				default: {},
+				displayOptions: { show: { '@version': [1] } },
 				options: [
 					{
 						displayName: 'Message Status Updates',
@@ -148,14 +202,7 @@ export class ContactWiseWhatsAppTrigger implements INodeType {
 						default: ['all'],
 						description:
 							'Which message statuses start the workflow. Incoming messages and other events always do.',
-						options: [
-							{ name: 'All', value: 'all' },
-							{ name: 'Deleted', value: 'deleted' },
-							{ name: 'Delivered', value: 'delivered' },
-							{ name: 'Failed', value: 'failed' },
-							{ name: 'Read', value: 'read' },
-							{ name: 'Sent', value: 'sent' },
-						],
+						options: MESSAGE_STATUS_OPTIONS,
 					},
 				],
 			},
@@ -266,12 +313,11 @@ export class ContactWiseWhatsAppTrigger implements INodeType {
 			return { noWebhookResponse: true };
 		}
 
-		const options = this.getNodeParameter('options', {}) as { messageStatusUpdates?: string[] };
 		const deliveryId = request.headers['x-cw-delivery-id'];
 		const items = deliveryToItems(
 			this.getBodyData(),
 			typeof deliveryId === 'string' ? deliveryId : undefined,
-			options.messageStatusUpdates ?? ['all'],
+			messageStatusFilter.call(this),
 		);
 
 		if (items.length === 0) {

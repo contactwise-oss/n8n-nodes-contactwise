@@ -61,6 +61,8 @@ export interface RunWebhookOptions {
 	staticData?: IDataObject;
 	credentialTypes?: ICredentialType[];
 	credentials?: Record<string, ICredentialDataDecryptedObject>;
+	/** The node's `typeVersion`. Defaults to the node's latest version. */
+	typeVersion?: number;
 }
 
 export interface RunWebhookResult {

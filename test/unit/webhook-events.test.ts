@@ -37,7 +37,11 @@ const envelope = (...entries: Array<{ id?: string; changes: unknown[]; time?: nu
 	entry: entries.map((entry) => ({ id: WABA_ID, ...entry })),
 });
 
-const ALL = ['all'];
+/** v1's rule: an empty selection means all statuses. */
+const v1 = (selected: string[]) => ({ selected, emptyMeans: 'all' as const });
+/** v1.1's rule: an empty selection means no statuses. */
+const v11 = (selected: string[]) => ({ selected, emptyMeans: 'none' as const });
+const ALL = v1(['all']);
 
 describe('deliveryToItems', () => {
 	it('emits one item per change, with the change value, its field and the delivery ID', () => {
@@ -125,7 +129,7 @@ describe('deliveryToItems', () => {
 			);
 
 		it("passes every status with 'All'", () => {
-			expect(statusesOf(deliveryToItems(body, DELIVERY_ID, ['all']))).toEqual([
+			expect(statusesOf(deliveryToItems(body, DELIVERY_ID, v1(['all'])))).toEqual([
 				'sent',
 				'delivered',
 				'read',
@@ -135,12 +139,12 @@ describe('deliveryToItems', () => {
 			]);
 		});
 
-		it('passes every status when nothing is selected', () => {
-			expect(deliveryToItems(body, DELIVERY_ID, [])).toHaveLength(6);
+		it('passes every status when nothing is selected and empty means all (v1)', () => {
+			expect(deliveryToItems(body, DELIVERY_ID, v1([]))).toHaveLength(6);
 		});
 
 		it('drops statuses that are not selected and keeps messages and other fields', () => {
-			expect(statusesOf(deliveryToItems(body, DELIVERY_ID, ['delivered', 'failed']))).toEqual([
+			expect(statusesOf(deliveryToItems(body, DELIVERY_ID, v1(['delivered', 'failed'])))).toEqual([
 				'delivered',
 				'failed',
 				'messages',
@@ -159,7 +163,7 @@ describe('deliveryToItems', () => {
 					],
 				},
 			};
-			const items = deliveryToItems(envelope({ changes: [change] }), DELIVERY_ID, ['read']);
+			const items = deliveryToItems(envelope({ changes: [change] }), DELIVERY_ID, v1(['read']));
 
 			expect(items).toHaveLength(1);
 			expect(items[0].json.statuses).toEqual([{ id: 'b', status: 'read' }]);
@@ -170,7 +174,7 @@ describe('deliveryToItems', () => {
 				field: 'messages',
 				value: { ...inboundMessage.value, statuses: [{ id: 'a', status: 'sent' }] },
 			};
-			const items = deliveryToItems(envelope({ changes: [change] }), DELIVERY_ID, ['read']);
+			const items = deliveryToItems(envelope({ changes: [change] }), DELIVERY_ID, v1(['read']));
 
 			expect(items).toHaveLength(1);
 			expect(items[0].json.messages).toEqual(inboundMessage.value.messages);
@@ -181,10 +185,60 @@ describe('deliveryToItems', () => {
 			const items = deliveryToItems(
 				envelope({ changes: [statusChange('sent'), statusChange('read')] }),
 				DELIVERY_ID,
-				['failed'],
+				v1(['failed']),
 			);
 
 			expect(items).toEqual([]);
+		});
+
+		describe('when empty means none (v1.1)', () => {
+			it('drops every status and keeps incoming messages and other fields', () => {
+				expect(statusesOf(deliveryToItems(body, DELIVERY_ID, v11([])))).toEqual([
+					'messages',
+					'message_template_status_update',
+				]);
+			});
+
+			it('keeps the messages of a change that also holds statuses', () => {
+				const change = {
+					field: 'messages',
+					value: { ...inboundMessage.value, statuses: [{ id: 'a', status: 'sent' }] },
+				};
+				const items = deliveryToItems(envelope({ changes: [change] }), DELIVERY_ID, v11([]));
+
+				expect(items).toHaveLength(1);
+				expect(items[0].json.messages).toEqual(inboundMessage.value.messages);
+				expect(items[0].json).not.toHaveProperty('statuses');
+			});
+
+			it('returns nothing for a delivery of statuses only', () => {
+				const items = deliveryToItems(
+					envelope({ changes: [statusChange('sent'), statusChange('delivered')] }),
+					DELIVERY_ID,
+					v11([]),
+				);
+
+				expect(items).toEqual([]);
+			});
+
+			it('passes only the selected statuses', () => {
+				expect(statusesOf(deliveryToItems(body, DELIVERY_ID, v11(['failed'])))).toEqual([
+					'failed',
+					'messages',
+					'message_template_status_update',
+				]);
+			});
+
+			it("passes every status with 'All' next to other options", () => {
+				expect(statusesOf(deliveryToItems(body, DELIVERY_ID, v11(['read', 'all'])))).toEqual([
+					'sent',
+					'delivered',
+					'read',
+					'failed',
+					'messages',
+					'message_template_status_update',
+				]);
+			});
 		});
 	});
 });

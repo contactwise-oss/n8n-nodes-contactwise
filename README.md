@@ -205,11 +205,22 @@ Add the **ContactWise WhatsApp Trigger** node, pick the events under 'Trigger On
 
 | Trigger On | Starts the workflow for |
 |---|---|
-| Messages | Incoming messages, and status updates (sent, delivered, read, failed) for messages you sent |
+| Messages | Incoming messages. Status updates (sent, delivered, read, failed or deleted) for messages you sent, but only the ones you select under 'Message Status Updates' |
 | Message Template Status Update, Message Template Quality Update, Template Category Update | Changes to your templates |
 | Account Update, Account Review Update, Business Capability Update, Phone Number Name Update, Phone Number Quality Update, Security | Changes to your WhatsApp Business Account and numbers |
 
-*Options › Message Status Updates* limits which statuses start the workflow, for example only **Failed**. Incoming messages and other events always do.
+**Message Status Updates** (shown when 'Trigger On' includes 'Messages') picks which status updates start the workflow:
+
+- **Empty** (the default): none. Only incoming messages start the workflow.
+- **All**, alone or with other options: every status.
+- **Any other selection**, for example only **Failed**: just those statuses.
+
+Incoming messages and the other events always start the workflow.
+
+> [!WARNING]
+> **Replying to status updates can send messages in a loop.** Each reply you send gets its own sent, delivered and read statuses. If those start the workflow and it replies again, every reply triggers more replies, and each one is a billed message. If a workflow both replies and listens for statuses, add an **If** node before the reply that continues only when `{{ $json.messages }}` exists, so only incoming messages get an answer.
+
+Trigger nodes added before version 0.3.2 of this package (node version 1) keep their old behaviour: the setting is under *Options › Message Status Updates*, and when it isn't set, every status starts the workflow. To switch such a workflow to the new default, replace its trigger with a new **ContactWise WhatsApp Trigger**, or add the **If** node above.
 
 > [!IMPORTANT]
 > ContactWise must be able to reach your n8n: its webhook URL has to be a **public `https://` address**. On a self-hosted n8n, set `WEBHOOK_URL` to your public URL. n8n on `localhost` or a private network can't receive events, and activation fails with ContactWise's reason, for example "url must use https://.".

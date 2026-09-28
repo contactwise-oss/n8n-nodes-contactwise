@@ -29,6 +29,45 @@ const status = (value: string) => ({
 	},
 });
 
+const inbound = {
+	field: 'messages',
+	value: {
+		messaging_product: 'whatsapp',
+		metadata,
+		contacts: [{ profile: { name: 'Asha' }, wa_id: '447700900123' }],
+		messages: [{ from: '447700900123', id: 'wamid.in', type: 'text', text: { body: 'Hi' } }],
+	},
+};
+
+const templateUpdate = {
+	field: 'message_template_status_update',
+	value: { event: 'APPROVED', message_template_id: 1, message_template_name: 'otp' },
+};
+
+const delivery = (...changes: unknown[]) =>
+	Buffer.from(
+		JSON.stringify({ object: 'whatsapp_business_account', entry: [{ id: WABA_ID, changes }] }),
+	);
+
+/** A reply's statuses arriving in the same delivery as the next incoming message. */
+const mixedDelivery = delivery(
+	status('sent'),
+	inbound,
+	status('delivered'),
+	status('read'),
+	templateUpdate,
+);
+
+/** One label per item: the status for a status change, otherwise the field. */
+const labels = (result: Awaited<ReturnType<typeof deliver>>['result']) =>
+	result.workflowData?.[0].map(({ json }) =>
+		json.statuses
+			? (json.statuses as IDataObject[])[0].status
+			: json.messages
+				? 'message'
+				: json.field,
+	);
+
 const batchDelivery = Buffer.from(
 	JSON.stringify({
 		object: 'whatsapp_business_account',
@@ -78,14 +117,23 @@ function deliver(
 		options = {},
 		staticData = { webhookId: 'whs_8Jq2kP0x3vYtR9aLmN4bQw', webhookSecret: SIGNING },
 		body,
-	}: { options?: IDataObject; staticData?: IDataObject; body?: IDataObject } = {},
-) {
-	return runWebhook({
-		node: new ContactWiseWhatsAppTrigger(),
-		parameters: {
+		typeVersion = 1,
+		parameters = {
 			updates: ['messages', 'message_template_status_update'],
 			options: options as INodeParameters,
 		},
+	}: {
+		options?: IDataObject;
+		staticData?: IDataObject;
+		body?: IDataObject;
+		typeVersion?: number;
+		parameters?: INodeParameters;
+	} = {},
+) {
+	return runWebhook({
+		node: new ContactWiseWhatsAppTrigger(),
+		typeVersion,
+		parameters,
 		method: 'POST',
 		rawBody,
 		body,
@@ -175,6 +223,103 @@ describe('ContactWise WhatsApp Trigger: deliveries', () => {
 		expect(response.statusCode).toBe(200);
 		expect(result.workflowData).toBeUndefined();
 		expect(result.noWebhookResponse).toBe(true);
+	});
+
+	it('starts the workflow for every status when v1 has no status option set', async () => {
+		const { result } = await deliver(mixedDelivery, signedHeaders(mixedDelivery));
+
+		expect(labels(result)).toEqual([
+			'sent',
+			'message',
+			'delivered',
+			'read',
+			'message_template_status_update',
+		]);
+	});
+
+	describe('v1.1', () => {
+		const v11 = (
+			messageStatusUpdates?: string[],
+			updates = ['messages', 'message_template_status_update'],
+		) => ({
+			typeVersion: 1.1,
+			parameters: {
+				updates,
+				...(messageStatusUpdates && { messageStatusUpdates }),
+			} as INodeParameters,
+		});
+
+		it('by default starts the workflow for incoming messages only, never for statuses', async () => {
+			const { result } = await deliver(mixedDelivery, signedHeaders(mixedDelivery), v11());
+
+			expect(labels(result)).toEqual(['message', 'message_template_status_update']);
+		});
+
+		it('answers 200 and starts no workflow for a delivery of statuses only', async () => {
+			const onlyStatuses = delivery(status('sent'), status('delivered'), status('read'));
+
+			const { result, response } = await deliver(onlyStatuses, signedHeaders(onlyStatuses), v11());
+
+			expect(response.statusCode).toBe(200);
+			expect(result.workflowData).toBeUndefined();
+			expect(result.noWebhookResponse).toBe(true);
+		});
+
+		it('starts no workflow for statuses when none are selected', async () => {
+			const { result } = await deliver(mixedDelivery, signedHeaders(mixedDelivery), v11([]));
+
+			expect(labels(result)).toEqual(['message', 'message_template_status_update']);
+		});
+
+		it('starts the workflow only for the selected statuses', async () => {
+			const { result } = await deliver(
+				mixedDelivery,
+				signedHeaders(mixedDelivery),
+				v11(['read', 'failed']),
+			);
+
+			expect(labels(result)).toEqual(['message', 'read', 'message_template_status_update']);
+		});
+
+		it("starts the workflow for every status with 'All' next to other options", async () => {
+			const { result } = await deliver(
+				mixedDelivery,
+				signedHeaders(mixedDelivery),
+				v11(['sent', 'all']),
+			);
+
+			expect(labels(result)).toEqual([
+				'sent',
+				'message',
+				'delivered',
+				'read',
+				'message_template_status_update',
+			]);
+		});
+
+		it("ignores v1's Options setting", async () => {
+			const { result } = await deliver(mixedDelivery, signedHeaders(mixedDelivery), {
+				typeVersion: 1.1,
+				parameters: {
+					updates: ['messages', 'message_template_status_update'],
+					options: { messageStatusUpdates: ['all'] },
+				},
+			});
+
+			expect(labels(result)).toEqual(['message', 'message_template_status_update']);
+		});
+
+		it('starts the workflow for other events when Messages is not selected', async () => {
+			const onlyTemplate = delivery(templateUpdate);
+
+			const { result } = await deliver(
+				onlyTemplate,
+				signedHeaders(onlyTemplate),
+				v11(undefined, ['message_template_status_update']),
+			);
+
+			expect(labels(result)).toEqual(['message_template_status_update']);
+		});
 	});
 
 	it('rejects a delivery older than 5 minutes with 401', async () => {

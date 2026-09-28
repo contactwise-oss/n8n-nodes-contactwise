@@ -6,12 +6,12 @@
         "updates": [
           "messages"
         ],
-        "options": {}
+        "messageStatusUpdates": []
       },
       "id": "7c0e4b2a-44a0-4c44-8d44-000000000001",
       "name": "On WhatsApp message",
       "type": "@contactwise/n8n-nodes-contactwise.contactWiseWhatsAppTrigger",
-      "typeVersion": 1,
+      "typeVersion": 1.1,
       "position": [
         0,
         0
