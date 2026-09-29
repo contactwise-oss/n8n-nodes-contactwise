@@ -12,6 +12,8 @@ const MAX_ROWS = 10;
 
 /** Buttons and rows can be given as JSON from v1.2 (TIN-62). */
 const V1_2 = { '@version': [{ _cnd: { gte: 1.2 } }] };
+/** Flow messages arrived in v1.3 (TIN-63). */
+const V1_3 = { '@version': [{ _cnd: { gte: 1.3 } }] };
 
 /** The fields for Message Type → Interactive, shown with `displayOptions` (v1.1 and later). */
 export function interactiveDescription(displayOptions: IDisplayOptions): INodeProperties[] {
@@ -45,7 +47,32 @@ export function interactiveDescription(displayOptions: IDisplayOptions): INodePr
 				},
 			],
 			default: 'button',
-			displayOptions,
+			displayOptions: { show: { ...displayOptions.show, '@version': [1.1, 1.2] } },
+		},
+		{
+			displayName: 'Interactive Type',
+			name: 'interactiveType',
+			type: 'options',
+			noDataExpression: true,
+			options: [
+				{
+					name: 'Buttons',
+					value: 'button',
+					description: 'Up to 3 reply buttons under the message',
+				},
+				{
+					name: 'Flow',
+					value: 'flow',
+					description: 'A button that opens a WhatsApp Flow, a form inside the chat',
+				},
+				{
+					name: 'List',
+					value: 'list',
+					description: 'A menu button that opens a list of up to 10 rows',
+				},
+			],
+			default: 'button',
+			displayOptions: { show: { ...displayOptions.show, ...V1_3 } },
 		},
 		{
 			displayName: 'Body',
@@ -54,7 +81,8 @@ export function interactiveDescription(displayOptions: IDisplayOptions): INodePr
 			typeOptions: { rows: 4 },
 			required: true,
 			default: '',
-			description: 'The message text: up to 1024 characters with buttons, or 4096 with a list',
+			description:
+				'The message text: up to 1024 characters with buttons or a Flow, or 4096 with a list',
 			displayOptions,
 		},
 		{
@@ -200,6 +228,98 @@ export function interactiveDescription(displayOptions: IDisplayOptions): INodePr
 			],
 			displayOptions: forFields('list', 'rowsInputMode'),
 		},
+		...flowDescription(forType('flow')),
+	];
+}
+
+/** The fields for Interactive Type → Flow (v1.3 and later, TIN-63). */
+function flowDescription(displayOptions: IDisplayOptions): INodeProperties[] {
+	return [
+		{
+			displayName: 'Flow',
+			name: 'flow',
+			type: 'resourceLocator',
+			default: { mode: 'id', value: '' },
+			required: true,
+			description: 'A Flow in your WhatsApp Business Account',
+			modes: [
+				{
+					displayName: 'By ID',
+					name: 'id',
+					type: 'string',
+					placeholder: 'e.g. 1000000000000005',
+					hint: 'The Flow ID shown in WhatsApp Manager',
+				},
+				{
+					displayName: 'By Name',
+					name: 'name',
+					type: 'string',
+					placeholder: 'e.g. appointment_booking',
+					hint: 'The Flow name, exactly as in WhatsApp Manager',
+				},
+			],
+			displayOptions,
+		},
+		{
+			displayName: 'Flow Button Text',
+			name: 'flowButtonText',
+			type: 'string',
+			required: true,
+			default: '',
+			placeholder: 'e.g. Book now',
+			description: 'The text of the button that opens the Flow, up to 20 characters',
+			displayOptions,
+		},
+		{
+			displayName: 'Flow Token',
+			// Not `flowToken`: the linter treats any name with 'token' as a password.
+			name: 'flowCorrelation',
+			type: 'string',
+			default: '',
+			placeholder: 'e.g. {{ $json.from }}-{{ $now.toMillis() }}',
+			description:
+				"Sent back to the WhatsApp Trigger with the recipient's answers, so you can match them to this message. Leave empty if you don't need it.",
+			displayOptions,
+		},
+		{
+			displayName: 'Flow Action',
+			name: 'flowAction',
+			type: 'options',
+			noDataExpression: true,
+			options: [
+				{
+					name: 'Data Exchange',
+					value: 'data_exchange',
+					description: "The Flow's endpoint picks the first screen",
+				},
+				{
+					name: 'Navigate',
+					value: 'navigate',
+					description: 'Open the Flow at a screen you choose',
+				},
+			],
+			default: 'data_exchange',
+			displayOptions,
+		},
+		{
+			displayName: 'Screen',
+			name: 'flowScreen',
+			type: 'string',
+			required: true,
+			default: '',
+			placeholder: 'e.g. WELCOME',
+			description: "The ID of the Flow's first screen",
+			displayOptions: { show: { ...displayOptions.show, flowAction: ['navigate'] } },
+		},
+		{
+			displayName: 'Screen Data (JSON)',
+			name: 'flowScreenData',
+			type: 'json',
+			default: '{}',
+			description:
+				'Optional data for the first screen, as a JSON object, for example { "name": "Priya" }',
+			displayOptions: { show: { ...displayOptions.show, flowAction: ['navigate'] } },
+		},
 	];
 }
 
@@ -207,6 +327,84 @@ export interface InteractiveAdditionalFields {
 	interactiveHeader?: string;
 	interactiveFooter?: string;
 	listSectionTitle?: string;
+	flowDraftMode?: boolean;
+}
+
+/** Fails the item when a required text parameter is empty. */
+function requireText(
+	this: IExecuteFunctions,
+	field: string,
+	value: string,
+	itemIndex: number,
+): string {
+	if (value.trim() !== '') return value;
+	throw new NodeOperationError(this.getNode(), `'${field}' is empty [item ${itemIndex}]`, {
+		description: `Enter a value for '${field}'.`,
+		itemIndex,
+	});
+}
+
+/** Reads 'Screen Data (JSON)': an object, a JSON string of one, or empty. */
+function screenData(this: IExecuteFunctions, itemIndex: number): IDataObject | undefined {
+	const fail = (problem: string): never => {
+		throw new NodeOperationError(
+			this.getNode(),
+			`'Screen Data (JSON)' ${problem} [item ${itemIndex}]`,
+			{ description: 'Use an object like { "name": "Priya" }, or leave it empty.', itemIndex },
+		);
+	};
+
+	let value = this.getNodeParameter('flowScreenData', itemIndex, '{}');
+	if (typeof value === 'string') {
+		if (value.trim() === '') return undefined;
+		try {
+			value = JSON.parse(value);
+		} catch {
+			fail("isn't valid JSON");
+		}
+	}
+	if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+		fail('must be an object');
+	}
+	const data = value as IDataObject;
+	return Object.keys(data).length > 0 ? data : undefined;
+}
+
+/** Meta's `action` for a Flow message. */
+function flowAction(
+	this: IExecuteFunctions,
+	itemIndex: number,
+	additionalFields: InteractiveAdditionalFields,
+): IDataObject {
+	const flow = this.getNodeParameter('flow', itemIndex) as { mode: string; value: string };
+	const flowValue = requireText.call(this, 'Flow', String(flow.value ?? ''), itemIndex);
+	const parameters: IDataObject = {
+		flow_message_version: '3',
+		[flow.mode === 'name' ? 'flow_name' : 'flow_id']: flowValue,
+		flow_cta: requireText.call(
+			this,
+			'Flow Button Text',
+			this.getNodeParameter('flowButtonText', itemIndex) as string,
+			itemIndex,
+		),
+	};
+	const token = this.getNodeParameter('flowCorrelation', itemIndex, '') as string;
+	if (token) parameters.flow_token = token;
+
+	const action = this.getNodeParameter('flowAction', itemIndex, 'data_exchange') as string;
+	parameters.flow_action = action;
+	if (action === 'navigate') {
+		const screen = requireText.call(
+			this,
+			'Screen',
+			this.getNodeParameter('flowScreen', itemIndex, '') as string,
+			itemIndex,
+		);
+		const data = screenData.call(this, itemIndex);
+		parameters.flow_action_payload = { screen, ...(data && { data }) };
+	}
+	if (additionalFields.flowDraftMode) parameters.mode = 'draft';
+	return { name: 'flow', parameters };
 }
 
 function checkCount(
@@ -301,6 +499,11 @@ export function interactiveContent(
 	interactive.body = { text: this.getNodeParameter('interactiveBody', itemIndex) as string };
 	if (additionalFields.interactiveFooter) {
 		interactive.footer = { text: additionalFields.interactiveFooter };
+	}
+
+	if (type === 'flow') {
+		interactive.action = flowAction.call(this, itemIndex, additionalFields);
+		return interactive;
 	}
 
 	if (type === 'button') {

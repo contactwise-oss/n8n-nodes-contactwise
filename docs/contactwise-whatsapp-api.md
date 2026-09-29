@@ -47,7 +47,7 @@ Used by the 'Phone Number' dropdown.
 | `location` | `{ "latitude", "longitude", "name", "address" }` | |
 | `contacts` | `[ { "name": { "formatted_name", … }, "addresses", "birthday", "emails", "org", "phones", "urls" } ]` | `name.formatted_name` is required |
 | `template` | `{ "name", "language": { "code" }, "components": [ … ] }` | Send Template, TIN-41 |
-| `interactive` | `{ "type": "button" \| "list", "header"?, "body": { "text" }, "footer"?, "action": { … } }` | Reply buttons and lists (TIN-61), below |
+| `interactive` | `{ "type": "button" \| "list" \| "flow", "header"?, "body": { "text" }, "footer"?, "action": { … } }` | Reply buttons and lists (TIN-61), Flows (TIN-63), below |
 
 **Interactive messages** (TIN-61, from Meta's Cloud API reference, checked 2026-09-28):
 
@@ -73,6 +73,38 @@ Used by the 'Phone Number' dropdown.
 | `body.text` | Required, max 1024 | Required, max 4096 |
 | `footer.text` (optional) | Max 60 | Max 60 |
 | `action` | `buttons`: 1–3 of `{ "type": "reply", "reply": { "id" (max 256), "title" (max 20) } }` | `button` (menu button text, max 20), `sections`: up to 10, with up to 10 `rows` in total. Each row: `id` (max 200), `title` (max 24), `description` (optional, max 72). A section `title` (max 24) is required when there's more than one section; the node sends one section |
+
+**Flow messages** (TIN-63, from Meta's Cloud API reference, checked 2026-09-29). A Flow is a form that opens inside the chat. Creating, publishing and editing Flows happens in WhatsApp Manager, not through the node:
+
+```json
+{ "type": "interactive", "interactive": {
+    "type": "flow",
+    "header": { "type": "text", "text": "Thendral Hospital" },
+    "body": { "text": "Book your appointment in a few taps." },
+    "footer": { "text": "Takes under a minute" },
+    "action": { "name": "flow", "parameters": {
+        "flow_message_version": "3",
+        "flow_id": "1000000000000005",
+        "flow_cta": "Book now",
+        "flow_token": "appt-447700900123",
+        "flow_action": "navigate",
+        "flow_action_payload": { "screen": "APPOINTMENT", "data": { "department": "cardiology" } },
+        "mode": "draft" } } } }
+```
+
+| Parameter | Rule | Node field |
+|---|---|---|
+| `flow_message_version` | Always `"3"` | Not shown |
+| `flow_id` or `flow_name` | One of them, required | 'Flow' (*By ID* or *By Name*) |
+| `flow_cta` | Required, max 20 | 'Flow Button Text' |
+| `flow_token` | Optional; Meta uses `"unused"` when it's left out. Returned with the submission | 'Flow Token' |
+| `flow_action` | `"navigate"` or `"data_exchange"` (Meta's default is navigate; the node's is data_exchange) | 'Flow Action' |
+| `flow_action_payload` | Navigate only: `{ "screen", "data"? }`, where `data` is a non-empty object. Left out for data_exchange | 'Screen', 'Screen Data (JSON)' |
+| `mode` | `"draft"` to send an unpublished Flow; left out means published | *Additional Fields › Draft Mode* |
+
+`body.text` is required, max 1024. The header is text only, max 60, and the footer max 60, as for buttons. Listing a WABA's Flows (`GET /{waba-id}/flows`) isn't allowed through the gateway yet (TIN-64), so the node has no Flow dropdown.
+
+**A submitted Flow arrives at the Trigger** as an incoming message with `type: "interactive"` and `interactive: { "type": "nfm_reply", "nfm_reply": { "name": "flow", "body": "Sent", "response_json": "{\"flow_token\":\"appt-447700900123\", …}" } }`. `response_json` is a **JSON string** holding the `flow_token` and the values from the Flow's completing screen. The Trigger passes it on unchanged (parsing it is TIN-66).
 
 **A tap arrives at the Trigger** as an incoming message with `type: "interactive"`: `interactive: { "type": "button_reply", "button_reply": { "id", "title" } }` for a button, or `{ "type": "list_reply", "list_reply": { "id", "title", "description" } }` for a list row. Interactive messages are free-form, so they're only allowed inside the 24-hour window.
 

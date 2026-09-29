@@ -72,6 +72,12 @@ User-facing display names. `copy-reviewer` enforces these. The credential terms 
 | Template | An approved WhatsApp message template | HSM, DLT template, message template ID |
 | Media ID | The ID WhatsApp returns for uploaded media | handle, attachment ID |
 | 24-hour window | The time since the recipient last messaged, during which free-form messages are allowed | session, conversation window, service window |
+| Flow | A WhatsApp Flow: a form that opens inside the chat, built in WhatsApp Manager | form, NFM, flow message |
+| Flow Button Text | The text of the button that opens the Flow (`flow_cta`) | CTA, call to action |
+| Flow Token | A value sent with the Flow and returned with the answers, to match them to the message | session ID, reference |
+| Flow Action | Data Exchange (the Flow's endpoint picks the first screen) or Navigate (open a named screen) | init, flow_action |
+| Screen | The ID of a Flow screen, for Navigate | page, step |
+| Draft Mode | Send a Flow that isn't published yet, for testing | test mode, preview |
 
 ## Code standards
 

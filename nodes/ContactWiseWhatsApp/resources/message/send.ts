@@ -48,7 +48,7 @@ export const sendDescription: INodeProperties[] = [
 			{
 				name: 'Interactive',
 				value: 'interactive',
-				description: 'Reply buttons or a list the recipient can tap',
+				description: 'Reply buttons, a list or a WhatsApp Flow the recipient can tap',
 			},
 			{ name: 'Location', value: 'location' },
 			{ name: 'Text', value: 'text' },
@@ -153,6 +153,15 @@ export const sendDescription: INodeProperties[] = [
 				default: '',
 				description: 'Text shown under the media',
 				displayOptions: { show: { '/messageType': CAPTIONED_TYPES } },
+			},
+			{
+				displayName: 'Draft Mode',
+				name: 'flowDraftMode',
+				type: 'boolean',
+				default: false,
+				description:
+					'Whether to send the Flow as a draft, to test it before you publish it in WhatsApp Manager',
+				displayOptions: { show: { '/messageType': ['interactive'], '/interactiveType': ['flow'] } },
 			},
 			{
 				displayName: 'Filename',
