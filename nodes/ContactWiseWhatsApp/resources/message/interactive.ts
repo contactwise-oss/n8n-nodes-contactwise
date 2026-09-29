@@ -14,6 +14,8 @@ const MAX_ROWS = 10;
 const V1_2 = { '@version': [{ _cnd: { gte: 1.2 } }] };
 /** Flow messages arrived in v1.3 (TIN-63). */
 const V1_3 = { '@version': [{ _cnd: { gte: 1.3 } }] };
+/** Meta's `flow_action` values. 'Flow Action' can be an expression, so it's checked per item (TIN-67). */
+const FLOW_ACTIONS = ['data_exchange', 'navigate'];
 
 /** The fields for Message Type → Interactive, shown with `displayOptions` (v1.1 and later). */
 export function interactiveDescription(displayOptions: IDisplayOptions): INodeProperties[] {
@@ -285,7 +287,6 @@ function flowDescription(displayOptions: IDisplayOptions): INodeProperties[] {
 			displayName: 'Flow Action',
 			name: 'flowAction',
 			type: 'options',
-			noDataExpression: true,
 			options: [
 				{
 					name: 'Data Exchange',
@@ -299,17 +300,22 @@ function flowDescription(displayOptions: IDisplayOptions): INodeProperties[] {
 				},
 			],
 			default: 'data_exchange',
+			description:
+				"How the Flow opens. To choose per item, use an expression that returns 'data_exchange' or 'navigate'.",
 			displayOptions,
 		},
 		{
 			displayName: 'Screen',
 			name: 'flowScreen',
 			type: 'string',
-			required: true,
+			// Shown for every Flow, not only Navigate: 'Flow Action' can be an expression, which the
+			// editor resolves without item data. So it isn't `required` either; flowAction() checks it
+			// for Navigate (TIN-67).
 			default: '',
 			placeholder: 'e.g. WELCOME',
-			description: "The ID of the Flow's first screen",
-			displayOptions: { show: { ...displayOptions.show, flowAction: ['navigate'] } },
+			description:
+				"The ID of the Flow's first screen. Required for Navigate, ignored for Data Exchange.",
+			displayOptions,
 		},
 		{
 			displayName: 'Screen Data (JSON)',
@@ -317,8 +323,8 @@ function flowDescription(displayOptions: IDisplayOptions): INodeProperties[] {
 			type: 'json',
 			default: '{}',
 			description:
-				'Optional data for the first screen, as a JSON object, for example { "name": "Priya" }',
-			displayOptions: { show: { ...displayOptions.show, flowAction: ['navigate'] } },
+				'Optional data for the first screen, as a JSON object, for example { "name": "Priya" }. Only used for Navigate.',
+			displayOptions,
 		},
 	];
 }
@@ -391,7 +397,23 @@ function flowAction(
 	const token = this.getNodeParameter('flowCorrelation', itemIndex, '') as string;
 	if (token) parameters.flow_token = token;
 
-	const action = this.getNodeParameter('flowAction', itemIndex, 'data_exchange') as string;
+	const action = requireText.call(
+		this,
+		'Flow Action',
+		String(this.getNodeParameter('flowAction', itemIndex, 'data_exchange') ?? ''),
+		itemIndex,
+	);
+	if (!FLOW_ACTIONS.includes(action)) {
+		throw new NodeOperationError(
+			this.getNode(),
+			`'Flow Action' must be 'data_exchange' or 'navigate', but is '${action}' [item ${itemIndex}]`,
+			{
+				description:
+					"Set 'Flow Action' to 'Data Exchange' or 'Navigate', or use an expression that returns 'data_exchange' or 'navigate'.",
+				itemIndex,
+			},
+		);
+	}
 	parameters.flow_action = action;
 	if (action === 'navigate') {
 		const screen = requireText.call(

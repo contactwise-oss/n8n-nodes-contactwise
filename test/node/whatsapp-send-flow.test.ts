@@ -1,3 +1,4 @@
+import type { IDataObject } from 'n8n-workflow';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -22,10 +23,15 @@ const FLOW_ID = '1000000000000005';
 const CORRELATION = 'appt-447700900123';
 const flowById = { __rl: true, mode: 'id', value: FLOW_ID };
 
-function sendFlow(parameters: Record<string, unknown>, typeVersion?: number) {
+function sendFlow(
+	parameters: Record<string, unknown>,
+	typeVersion?: number,
+	input?: IDataObject[],
+) {
 	const intercepted = interceptGateway('post', messagesPath, whatsAppScenarios.messageAccepted());
 	const run = runWhatsApp({
 		typeVersion,
+		input,
 		parameters: {
 			messageType: 'interactive',
 			interactiveType: 'flow',
@@ -205,5 +211,85 @@ describe('ContactWise WhatsApp: Message → Send, interactive Flow (v1.3)', () =
 				action: { buttons: [{ type: 'reply', reply: { id: 'yes', title: 'Yes' } }] },
 			},
 		});
+	});
+});
+
+describe('ContactWise WhatsApp: Message → Send, Flow Action from an expression (TIN-67)', () => {
+	/** 'Flow Action' and 'Screen' read from the item, as when one node sends several Flows. */
+	const fromItem = { flowAction: '={{ $json.action }}', flowScreen: '={{ $json.screen }}' };
+	const parametersOf = (request: { body: unknown }) =>
+		(request.body as { interactive: { action: { parameters: Record<string, unknown> } } })
+			.interactive.action.parameters;
+
+	it('an expression resolving to navigate opens the Flow at the screen', async () => {
+		const { intercepted, run } = sendFlow(fromItem, undefined, [
+			{ action: 'navigate', screen: 'FEEDBACK' },
+		]);
+		const { error } = await run;
+
+		expect(error).toBeUndefined();
+		expect(parametersOf(intercepted.requests[0])).toEqual({
+			flow_message_version: '3',
+			flow_id: FLOW_ID,
+			flow_cta: 'Book now',
+			flow_action: 'navigate',
+			flow_action_payload: { screen: 'FEEDBACK' },
+		});
+	});
+
+	it('an expression resolving to data exchange sends no payload, even with an empty screen', async () => {
+		const { intercepted, run } = sendFlow(fromItem, undefined, [
+			{ action: 'data_exchange', screen: '' },
+		]);
+		const { error } = await run;
+
+		expect(error).toBeUndefined();
+		expect(parametersOf(intercepted.requests[0])).toEqual({
+			flow_message_version: '3',
+			flow_id: FLOW_ID,
+			flow_cta: 'Book now',
+			flow_action: 'data_exchange',
+		});
+	});
+
+	it('a fixed data exchange ignores a screen and screen data that are filled in', async () => {
+		const { intercepted, run } = sendFlow({
+			flowAction: 'data_exchange',
+			flowScreen: 'WELCOME',
+			flowScreenData: '{ "name": "Priya" }',
+		});
+		const { error } = await run;
+
+		expect(error).toBeUndefined();
+		expect(parametersOf(intercepted.requests[0])).toEqual({
+			flow_message_version: '3',
+			flow_id: FLOW_ID,
+			flow_cta: 'Book now',
+			flow_action: 'data_exchange',
+		});
+	});
+
+	it('an empty screen with a fixed Navigate reaches the node and fails there', async () => {
+		const { intercepted, run } = sendFlow({ flowAction: 'navigate', flowScreen: '' });
+		const { error } = await run;
+
+		expect(error?.message).toContain("'Screen' is empty [item 0]");
+		expect(intercepted.requests).toHaveLength(0);
+	});
+
+	it.each([
+		[
+			'an unknown action',
+			{ action: 'open', screen: 'WELCOME' },
+			"'Flow Action' must be 'data_exchange' or 'navigate', but is 'open'",
+		],
+		['an empty action', { action: '', screen: '' }, "'Flow Action' is empty"],
+	])('%s fails the item and makes no API call', async (_name, item, message) => {
+		const { intercepted, run } = sendFlow(fromItem, undefined, [item]);
+		const { error } = await run;
+
+		expect(error?.message).toContain(message);
+		expect(error?.message).toContain('[item 0]');
+		expect(intercepted.requests).toHaveLength(0);
 	});
 });
