@@ -322,6 +322,77 @@ describe('ContactWise WhatsApp Trigger: deliveries', () => {
 		});
 	});
 
+	describe('Flow submissions', () => {
+		const CORRELATION = 'appt-447700900123';
+		const answers = { flow_token: CORRELATION, date: '2026-10-02', slot: '10:30' };
+		const flowReply = (response_json: string) => ({
+			field: 'messages',
+			value: {
+				messaging_product: 'whatsapp',
+				metadata,
+				contacts: [{ profile: { name: 'Asha' }, wa_id: '447700900123' }],
+				messages: [
+					{
+						from: '447700900123',
+						id: 'wamid.flow',
+						type: 'interactive',
+						interactive: {
+							type: 'nfm_reply',
+							nfm_reply: { name: 'flow', body: 'Sent', response_json },
+						},
+					},
+				],
+			},
+		});
+		const submitted = delivery(flowReply(JSON.stringify(answers)));
+		const at = (typeVersion: number) => ({
+			typeVersion,
+			parameters: { updates: ['messages'] } as INodeParameters,
+		});
+		const nfmReply = (result: Awaited<ReturnType<typeof deliver>>['result']) =>
+			((result.workflowData?.[0][0].json.messages as IDataObject[])[0].interactive as IDataObject)
+				.nfm_reply;
+
+		it('adds the parsed answers next to response_json from v1.2', async () => {
+			const { result } = await deliver(submitted, signedHeaders(submitted), at(1.2));
+
+			expect(nfmReply(result)).toEqual({
+				name: 'flow',
+				body: 'Sent',
+				response_json: JSON.stringify(answers),
+				response: answers,
+			});
+		});
+
+		it.each([1, 1.1])('leaves the answers as a string in v%s', async (typeVersion) => {
+			const { result } = await deliver(submitted, signedHeaders(submitted), at(typeVersion));
+
+			expect(nfmReply(result)).toEqual({
+				name: 'flow',
+				body: 'Sent',
+				response_json: JSON.stringify(answers),
+			});
+		});
+
+		it.each([
+			['is not JSON', '{"flow_token": "appt-'],
+			['is not a JSON object', '["appt-447700900123"]'],
+		])('passes the message through unchanged when response_json %s', async (_, responseJson) => {
+			const broken = delivery(flowReply(responseJson));
+
+			const { result, response } = await deliver(broken, signedHeaders(broken), at(1.2));
+
+			expect(response.statusCode).toBe(200);
+			expect(nfmReply(result)).toEqual({ name: 'flow', body: 'Sent', response_json: responseJson });
+		});
+
+		it('leaves other messages in v1.2 unchanged', async () => {
+			const { result } = await deliver(mixedDelivery, signedHeaders(mixedDelivery), at(1.2));
+
+			expect(result.workflowData?.[0][0].json.messages).toEqual(inbound.value.messages);
+		});
+	});
+
 	it('rejects a delivery older than 5 minutes with 401', async () => {
 		const timestamp = Math.floor(Date.now() / 1000) - 301;
 

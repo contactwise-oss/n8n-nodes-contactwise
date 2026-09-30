@@ -11,7 +11,7 @@ import { NodeApiError, NodeConnectionTypes, NodeOperationError } from 'n8n-workf
 
 import { FAILURE_CONTEXT_KEY, contactWiseApiRequest } from '../shared/transport';
 import type { SendFailure } from '../shared/errors';
-import { deliveryToItems } from './shared/events';
+import { deliveryToItems, withFlowResponses } from './shared/events';
 import type { MessageStatusFilter } from './shared/events';
 import { verifyDelivery } from './shared/signature';
 
@@ -99,7 +99,7 @@ export class ContactWiseWhatsAppTrigger implements INodeType {
 			dark: 'file:../../icons/contactwise.dark.svg',
 		},
 		group: ['trigger'],
-		version: [1, 1.1],
+		version: [1, 1.1, 1.2],
 		subtitle:
 			'={{"Events: " + $parameter["updates"].map((field) => field.replace(/_/g, " ")).join(", ")}}',
 		description:
@@ -324,6 +324,8 @@ export class ContactWiseWhatsAppTrigger implements INodeType {
 			response.status(200).end();
 			return { noWebhookResponse: true };
 		}
+		// From v1.2 submitted Flow answers are parsed as well (TIN-66).
+		if (this.getNode().typeVersion >= 1.2) return { workflowData: [items.map(withFlowResponses)] };
 		return { workflowData: [items] };
 	}
 }

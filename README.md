@@ -242,7 +242,9 @@ Each change in an event becomes one item: WhatsApp's `value`, plus `field`, `wha
 }
 ```
 
-When a recipient submits a Flow, the message has `type: "interactive"` and `interactive.type: "nfm_reply"`. The answers are in `interactive.nfm_reply.response_json`, a **JSON string** with the `flow_token` you sent and the values from the Flow's last screen. Parse it before reading the values, for example in an **Edit Fields (Set)** node with the expression `{{ JSON.parse($json.messages[0].interactive.nfm_reply.response_json) }}`.
+When a recipient submits a Flow, the message has `type: "interactive"` and `interactive.type: "nfm_reply"`. The node parses the answers into `interactive.nfm_reply.response`: the Flow Token you sent (`flow_token`) and the values from the Flow's last screen. Read them with, for example, `{{ $json.messages[0].interactive.nfm_reply.response.flow_token }}`. WhatsApp's original **JSON string** stays in `response_json`.
+
+Trigger nodes created with node version 1.1 or earlier (before package version 0.7.0) output only the string. Parse it before reading the values, for example in an **Edit Fields (Set)** node with the expression `{{ JSON.parse($json.messages[0].interactive.nfm_reply.response_json) }}`, or replace the trigger with a new **ContactWise WhatsApp Trigger**.
 
 - **Signed:** every event is signed by ContactWise. Requests that aren't correctly signed, or are more than 5 minutes old, are refused with 401 and start nothing.
 - **At least once, in any order:** an event can arrive twice, and a `read` status can arrive before `delivered`. If a workflow must not run twice for one event, deduplicate on `deliveryId`: it stays the same when an event is delivered again.

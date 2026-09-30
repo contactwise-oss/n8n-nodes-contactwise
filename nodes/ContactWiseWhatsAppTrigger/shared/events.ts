@@ -37,6 +37,42 @@ function filterStatuses(value: IDataObject, filter: MessageStatusFilter): IDataO
 	return undefined;
 }
 
+/** The parsed `response_json` of a submitted Flow, or undefined if it isn't a JSON object. */
+function parseFlowResponse(nfmReply: IDataObject): IDataObject | undefined {
+	if (typeof nfmReply.response_json !== 'string') return undefined;
+	try {
+		const parsed: unknown = JSON.parse(nfmReply.response_json);
+		return isObject(parsed) ? parsed : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function withFlowResponse(message: unknown): unknown {
+	if (!isObject(message) || !isObject(message.interactive)) return message;
+	const { interactive } = message;
+	if (interactive.type !== 'nfm_reply' || !isObject(interactive.nfm_reply)) return message;
+	const response = parseFlowResponse(interactive.nfm_reply);
+	if (!response) return message;
+	return {
+		...message,
+		interactive: { ...interactive, nfm_reply: { ...interactive.nfm_reply, response } },
+	};
+}
+
+/**
+ * Adds `interactive.nfm_reply.response` (the parsed `response_json`) to each submitted Flow
+ * message in an item (Trigger v1.2, TIN-66). `response_json` stays, so expressions written for Meta's shape
+ * still work. A `response_json` that isn't a JSON object leaves the message unchanged.
+ */
+export function withFlowResponses(item: INodeExecutionData): INodeExecutionData {
+	if (!Array.isArray(item.json.messages)) return item;
+	return {
+		...item,
+		json: { ...item.json, messages: (item.json.messages as unknown[]).map(withFlowResponse) },
+	} as INodeExecutionData;
+}
+
 /**
  * Turns one ContactWise delivery (Meta's envelope, filtered to the subscription) into one item
  * per `entry[].changes[]`: the change's `value`, plus its `field`, the WhatsApp Business Account

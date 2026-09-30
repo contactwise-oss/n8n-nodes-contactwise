@@ -104,7 +104,7 @@ Used by the 'Phone Number' dropdown.
 
 `body.text` is required, max 1024. The header is text only, max 60, and the footer max 60, as for buttons. Listing a WABA's Flows (`GET /{waba-id}/flows`) isn't allowed through the gateway yet (TIN-64), so the node has no Flow dropdown.
 
-**A submitted Flow arrives at the Trigger** as an incoming message with `type: "interactive"` and `interactive: { "type": "nfm_reply", "nfm_reply": { "name": "flow", "body": "Sent", "response_json": "{\"flow_token\":\"appt-447700900123\", …}" } }`. `response_json` is a **JSON string** holding the `flow_token` and the values from the Flow's completing screen. The Trigger passes it on unchanged (parsing it is TIN-66).
+**A submitted Flow arrives at the Trigger** as an incoming message with `type: "interactive"` and `interactive: { "type": "nfm_reply", "nfm_reply": { "name": "flow", "body": "Sent", "response_json": "{\"flow_token\":\"appt-447700900123\", …}" } }`. `response_json` is a **JSON string** holding the `flow_token` and the values from the Flow's last screen. From Trigger version 1.2 (TIN-66) the node also adds `nfm_reply.response`, the parsed object, and keeps `response_json` unchanged. If `response_json` isn't a JSON object, the message is passed on unchanged. Versions 1 and 1.1 pass the string only.
 
 **A tap arrives at the Trigger** as an incoming message with `type: "interactive"`: `interactive: { "type": "button_reply", "button_reply": { "id", "title" } }` for a button, or `{ "type": "list_reply", "list_reply": { "id", "title", "description" } }` for a list row. Interactive messages are free-form, so they're only allowed inside the 24-hour window.
 
