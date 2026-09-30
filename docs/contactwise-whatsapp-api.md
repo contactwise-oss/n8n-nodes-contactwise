@@ -10,7 +10,7 @@ The public docs at https://docs.contactwise.io/ have no WhatsApp section yet (TI
 - **Auth:** the same `X-CW-Api-Key` header as SMS, with the tenant ID in the path. The gateway swaps the key for the tenant's WhatsApp Business Account token, so the node never sees a Meta token.
 - **One WhatsApp Business Account per tenant** (confirmed 2026-09-25). Its ID is the credential's optional 'WhatsApp Business Account ID' field. There's no per-node override. SMS never uses it.
 - Requests, responses and Meta's errors pass through **unchanged**.
-- **Path allowlist (TIN-32).** The node must only call the paths listed below.
+- **Path allowlist (TIN-32, live since 2026-09-28).** The gateway only forwards the Graph paths the nodes use, for the tenant's own phone numbers and WhatsApp Business Account. Media calls carry `?phone_number_id=`, the number the media belongs to (TIN-58, TIN-68).
 
 ## IDs the node works with
 
@@ -127,12 +127,14 @@ Multipart form: `messaging_product=whatsapp`, `type=<mime type>`, `file=<binary>
 ### Media metadata and delete: `GET` / `DELETE /{media-id}` (TIN-42; Download is TIN-55)
 
 - `GET` 200: `{ "messaging_product", "url", "mime_type", "sha256", "file_size", "id" }`. The `url` needs Meta's token, which the customer doesn't have. So Media → Download uses the route below, and the node never calls this `GET`.
-- `DELETE` 200: `{ "success": true }`.
+- `DELETE /{media-id}?phone_number_id=<phone-number-id>` 200: `{ "success": true }`.
+- **`phone_number_id` (TIN-58, TIN-68):** the number the media belongs to. Inbound media belongs to the number that received the message (the webhook's `metadata.phone_number_id`); uploaded media to the number it was uploaded with. Any other number, even another of the tenant's own, gets 400 `(#10) Permission denied` (checked 2026-09-28). The gateway checks the number is the tenant's. Once TIN-58 is enforced, a media call without it gets **403** `{ "error": "<message>" }`. The node sends it whenever 'Phone Number' is set, which node version 1.4 requires; versions 1–1.3 send it only when set. Both errors point the user at 'Phone Number'.
 
 ### Download media: `GET /v1/whatsapp/{tenantId}/media/{mediaId}/content` (TIN-33, TIN-55)
 
 Confirmed by the API team on 2026-09-26 (TIN-33). This is a gateway route, **not** under `/v1/waba-direct/`: the gateway looks up Meta's media URL with the tenant's token and streams the file back.
 
+- **Query:** `?phone_number_id=<phone-number-id>`, the number the media belongs to, as for `DELETE` above (TIN-58, TIN-68).
 - **Auth:** the same `X-CW-Api-Key` header. A bad key and an unknown tenant both get 401 `{ "error": "Invalid API key." }`.
 - **200:** the file's bytes, with these headers:
 
@@ -149,6 +151,7 @@ Confirmed by the API team on 2026-09-26 (TIN-33). This is a gateway route, **not
 |---|---|
 | 400 | `mediaId` isn't a valid media ID |
 | 401 | Bad key, or unknown tenant |
+| 403 | `phone_number_id` is missing (once TIN-58 is enforced) or isn't the tenant's |
 | 404 | Not found, expired, deleted, or owned by another tenant. The same body for all four |
 | 429 / 503 | Rate limited or unavailable, with `Retry-After` |
 | 502 | Meta's download URL failed, e.g. it expired |

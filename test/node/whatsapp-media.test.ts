@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 
 import { TEST_API_KEY, TEST_TENANT_ID } from '../fixtures/contactwise-api';
 import {
+	type GatewayScenario,
 	TEST_PHONE_NUMBER_ID,
+	gatewayPath,
 	interceptGateway,
 	interceptMediaDownload,
 	mediaDownloadPath,
@@ -32,7 +34,13 @@ const uploadParameters = {
 	binaryPropertyName: 'data',
 };
 
-const deleteParameters = { resource: 'media', operation: 'delete', mediaId: '1000000000000004' };
+const phoneNumber = { __rl: true, mode: 'id', value: TEST_PHONE_NUMBER_ID };
+const deleteParameters = {
+	resource: 'media',
+	operation: 'delete',
+	phoneNumberId: phoneNumber,
+	mediaId: '1000000000000004',
+};
 
 describe('ContactWise WhatsApp: Media → Upload', () => {
 	it("uploads the item's file as multipart and outputs the media ID", async () => {
@@ -78,7 +86,7 @@ describe('ContactWise WhatsApp: Media → Upload', () => {
 });
 
 describe('ContactWise WhatsApp: Media → Delete', () => {
-	it('deletes the media ID and outputs the result', async () => {
+	it("deletes the media ID for the 'Phone Number' and outputs the result", async () => {
 		const { requests } = interceptGateway(
 			'delete',
 			'1000000000000004',
@@ -89,6 +97,9 @@ describe('ContactWise WhatsApp: Media → Delete', () => {
 
 		expect(error).toBeUndefined();
 		expect(requests).toHaveLength(1);
+		expect(requests[0].path).toBe(
+			`${gatewayPath('1000000000000004')}?phone_number_id=${TEST_PHONE_NUMBER_ID}`,
+		);
 		expect(items[0].json).toEqual({ success: true });
 	});
 
@@ -130,7 +141,12 @@ describe('ContactWise WhatsApp: Media → Delete', () => {
 
 const MEDIA_ID = '1000000000000004';
 const pdfBytes = Buffer.from('%PDF-1.7 downloaded');
-const downloadParameters = { resource: 'media', operation: 'download', mediaId: MEDIA_ID };
+const downloadParameters = {
+	resource: 'media',
+	operation: 'download',
+	phoneNumberId: phoneNumber,
+	mediaId: MEDIA_ID,
+};
 const downloadedPdf = () =>
 	whatsAppScenarios.mediaFile(pdfBytes, {
 		contentType: 'application/pdf',
@@ -146,7 +162,9 @@ describe('ContactWise WhatsApp: Media → Download', () => {
 
 		expect(error).toBeUndefined();
 		expect(requests).toHaveLength(1);
-		expect(requests[0].path).toBe(mediaDownloadPath(MEDIA_ID, TEST_TENANT_ID));
+		expect(requests[0].path).toBe(
+			`${mediaDownloadPath(MEDIA_ID, TEST_TENANT_ID)}?phone_number_id=${TEST_PHONE_NUMBER_ID}`,
+		);
 		expect(requests[0].headers['x-cw-api-key']).toBe(TEST_API_KEY);
 		expect(requests[0].headers['x-cw-source']).toMatch(/^n8n-nodes-contactwise\//);
 		expect(items[0].json).toEqual({
@@ -317,5 +335,73 @@ describe('ContactWise WhatsApp: Media → Download', () => {
 		expect(items[0].binary).toBeUndefined();
 		expect(items[1].json.id).toBe(MEDIA_ID);
 		expect(items[1].binary?.data).toBeDefined();
+	});
+});
+
+// TIN-68: 'Phone Number' on Delete and Download. Required from v1.4; optional before, so saved
+// workflows keep working until the gateway requires phone_number_id (TIN-58).
+const noPhoneNumber = { phoneNumberId: { __rl: true, mode: 'list', value: '' } };
+
+describe.each([
+	{
+		operation: 'Delete',
+		base: deleteParameters,
+		intercept: (scenario: GatewayScenario) => interceptGateway('delete', MEDIA_ID, scenario),
+		ok: () => whatsAppScenarios.mediaDeleted(),
+		path: gatewayPath(MEDIA_ID),
+	},
+	{
+		operation: 'Download',
+		base: downloadParameters,
+		intercept: (scenario: GatewayScenario) => interceptMediaDownload(MEDIA_ID, scenario),
+		ok: downloadedPdf,
+		path: mediaDownloadPath(MEDIA_ID),
+	},
+])('ContactWise WhatsApp: Media → $operation, Phone Number', ({ base, intercept, ok, path }) => {
+	it.each([1, 1.3])('v%s without a phone number: sends no phone_number_id', async (typeVersion) => {
+		const { requests } = intercept(ok());
+
+		const { error } = await runWhatsApp({ base, parameters: noPhoneNumber, typeVersion });
+
+		expect(error).toBeUndefined();
+		expect(requests[0].path).toBe(path);
+	});
+
+	it('v1.3 with a phone number: sends it', async () => {
+		const { requests } = intercept(ok());
+
+		const { error } = await runWhatsApp({ base, typeVersion: 1.3 });
+
+		expect(error).toBeUndefined();
+		expect(requests[0].path).toBe(`${path}?phone_number_id=${TEST_PHONE_NUMBER_ID}`);
+	});
+
+	it("v1.4: 'Phone Number' is required", async () => {
+		const { requests } = intercept(ok());
+
+		await expect(runWhatsApp({ base, parameters: noPhoneNumber })).rejects.toThrow(/has issues/);
+		expect(requests).toHaveLength(0);
+	});
+
+	it('v1.4 with a phone number that resolves to nothing: fails before any API call', async () => {
+		const { requests } = intercept(ok());
+
+		const { error } = await runWhatsApp({
+			base,
+			parameters: { phoneNumberId: { __rl: true, mode: 'id', value: '={{ "" }}' } },
+		});
+
+		expect(error?.message).toBe("'Phone Number' is empty [item 0]");
+		expect(error?.description).toContain('received');
+		expect(requests).toHaveLength(0);
+	});
+
+	it("Meta's (#10) Permission denied points at 'Phone Number'", async () => {
+		intercept(whatsAppScenarios.metaError(10, 'Permission denied'));
+
+		const { error } = await runWhatsApp({ base });
+
+		expect(error?.message).toMatch(/Permission denied \[item 0\]$/);
+		expect(error?.description).toContain("'Phone Number'");
 	});
 });

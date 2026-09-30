@@ -1,3 +1,4 @@
+import { NodeOperationError } from 'n8n-workflow';
 import type {
 	IDataObject,
 	IExecuteFunctions,
@@ -37,7 +38,60 @@ export const mediaOperations: INodeProperties = {
 	default: 'upload',
 };
 
+const WHICH_PHONE_NUMBER =
+	'For media a customer sent, use the number that received the message. For media you uploaded, use the number you uploaded it with.';
+
+const PHONE_NUMBER_DESCRIPTION = `Your WhatsApp number the media file belongs to. ${WHICH_PHONE_NUMBER}`;
+const showForDeleteAndDownload = { resource: ['media'], operation: ['delete', 'download'] };
+
 export const mediaDescription: INodeProperties[] = [
+	// 'Phone Number' for Delete and Download (TIN-68): the number the media file belongs to, sent as
+	// `phone_number_id`. Required from v1.4. Optional before, so saved workflows keep running.
+	{
+		displayName: 'Phone Number',
+		name: 'phoneNumberId',
+		type: 'resourceLocator',
+		default: { mode: 'list', value: '' },
+		required: true,
+		description: PHONE_NUMBER_DESCRIPTION,
+		modes: [
+			{
+				displayName: 'From List',
+				name: 'list',
+				type: 'list',
+				typeOptions: { searchListMethod: 'getPhoneNumbers' },
+			},
+			{
+				displayName: 'ID',
+				name: 'id',
+				type: 'string',
+				placeholder: 'e.g. 100000000000002',
+			},
+		],
+		displayOptions: { show: { ...showForDeleteAndDownload, '@version': [{ _cnd: { gte: 1.4 } }] } },
+	},
+	{
+		displayName: 'Phone Number',
+		name: 'phoneNumberId',
+		type: 'resourceLocator',
+		default: { mode: 'list', value: '' },
+		description: PHONE_NUMBER_DESCRIPTION,
+		modes: [
+			{
+				displayName: 'From List',
+				name: 'list',
+				type: 'list',
+				typeOptions: { searchListMethod: 'getPhoneNumbers' },
+			},
+			{
+				displayName: 'ID',
+				name: 'id',
+				type: 'string',
+				placeholder: 'e.g. 100000000000002',
+			},
+		],
+		displayOptions: { show: { ...showForDeleteAndDownload, '@version': [{ _cnd: { lt: 1.4 } }] } },
+	},
 	{
 		displayName: 'Input Binary Field',
 		name: 'binaryPropertyName',
@@ -102,6 +156,22 @@ export async function upload(this: IExecuteFunctions, itemIndex: number): Promis
 	return { id };
 }
 
+/**
+ * `?phone_number_id=…` for the item's 'Phone Number', so Meta only acts on media that belongs to
+ * it (TIN-58). Empty when no number is set, which only versions before 1.4 allow.
+ */
+function phoneNumberQuery(this: IExecuteFunctions, itemIndex: number): string {
+	const phoneNumberId = String(
+		this.getNodeParameter('phoneNumberId', itemIndex, '', { extractValue: true }) ?? '',
+	).trim();
+	if (phoneNumberId) return `?phone_number_id=${encodeURIComponent(phoneNumberId)}`;
+	if (this.getNode().typeVersion < 1.4) return '';
+	throw new NodeOperationError(this.getNode(), `'Phone Number' is empty [item ${itemIndex}]`, {
+		description: `Select the WhatsApp number the media file belongs to, or enter its ID. ${WHICH_PHONE_NUMBER}`,
+		itemIndex,
+	});
+}
+
 /** Deletes a media file and returns Meta's `{ success }`. */
 export async function deleteMedia(
 	this: IExecuteFunctions,
@@ -109,10 +179,11 @@ export async function deleteMedia(
 ): Promise<IDataObject> {
 	const credentials = await this.getCredentials('contactWiseApi', itemIndex);
 	const mediaId = (this.getNodeParameter('mediaId', itemIndex) as string).trim();
+	const query = phoneNumberQuery.call(this, itemIndex);
 	return await contactWiseApiRequest.call(
 		this,
 		'DELETE',
-		`/v1/waba-direct/${credentials.tenantId as string}/${encodeURIComponent(mediaId)}`,
+		`/v1/waba-direct/${credentials.tenantId as string}/${encodeURIComponent(mediaId)}${query}`,
 		undefined,
 		itemIndex,
 		'whatsapp-delete',
@@ -137,10 +208,11 @@ export async function download(
 	const mediaId = (this.getNodeParameter('mediaId', itemIndex) as string).trim();
 	const binaryPropertyName = this.getNodeParameter('binaryPropertyName', itemIndex) as string;
 	const options = this.getNodeParameter('options', itemIndex, {}) as { fileName?: string };
+	const query = phoneNumberQuery.call(this, itemIndex);
 
 	const { data, headers } = await contactWiseApiDownload.call(
 		this,
-		`/v1/whatsapp/${credentials.tenantId as string}/media/${encodeURIComponent(mediaId)}/content`,
+		`/v1/whatsapp/${credentials.tenantId as string}/media/${encodeURIComponent(mediaId)}/content${query}`,
 		itemIndex,
 		'whatsapp-download',
 	);

@@ -351,6 +351,49 @@ describe('interpretFailure', () => {
 		});
 	});
 
+	// TIN-58/TIN-68: Meta only serves or deletes media for the phone number it belongs to, and the
+	// gateway will refuse media calls that name no phone number.
+	describe.each(['whatsapp-delete', 'whatsapp-download'] as const)(
+		'%s: wrong or missing phone number',
+		(channel) => {
+			it("Meta's (#10) Permission denied points at 'Phone Number'", () => {
+				const failure = interpretFailure(
+					{
+						statusCode: 400,
+						body: { error: { message: '(#10) Permission denied', code: 10 } },
+					},
+					channel,
+				);
+
+				expect(failure.message).toMatch(/: Permission denied$/);
+				expect(failure.description).toContain("'Phone Number'");
+				expect(failure.description).toContain('received');
+				expect(failure.description).toContain('uploaded');
+				expect(failure.description).not.toContain("Check the 'Media ID', then try again.");
+			});
+
+			it("the gateway's 403 points at 'Phone Number'", () => {
+				const failure = interpretFailure(
+					{ statusCode: 403, body: { error: 'phone_number_id is required for media requests.' } },
+					channel,
+				);
+
+				expect(failure.messages).toEqual(['phone_number_id is required for media requests.']);
+				expect(failure.description).toContain("'Phone Number'");
+				expect(failure.retryable).toBe(false);
+			});
+		},
+	);
+
+	it('(#10) on a send keeps the general WhatsApp fix', () => {
+		const failure = interpretFailure(
+			{ statusCode: 400, body: { error: { message: '(#10) Permission denied', code: 10 } } },
+			'whatsapp',
+		);
+
+		expect(failure.description).not.toContain("'Phone Number'");
+	});
+
 	describe('webhook subscription channels (TIN-40)', () => {
 		it.each([
 			['whatsapp-webhook-create', 429],

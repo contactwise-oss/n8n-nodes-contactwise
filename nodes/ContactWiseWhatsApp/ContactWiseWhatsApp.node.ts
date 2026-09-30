@@ -41,7 +41,7 @@ export class ContactWiseWhatsApp implements INodeType {
 			dark: 'file:../../icons/contactwise.dark.svg',
 		},
 		group: ['output'],
-		version: [1, 1.1, 1.2, 1.3],
+		version: [1, 1.1, 1.2, 1.3, 1.4],
 		subtitle: '={{$parameter["operation"] + ": " + $parameter["resource"]}}',
 		description:
 			'Send WhatsApp messages through ContactWise, without needing your own Meta account or access token. Each run sends a real, billable WhatsApp message.',

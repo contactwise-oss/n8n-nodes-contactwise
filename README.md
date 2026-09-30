@@ -188,6 +188,13 @@ Use the **Media** resource:
 
 WhatsApp keeps media for 30 days. You can only download or delete media that belongs to your own WhatsApp Business Account.
 
+Download and Delete also need the 'Phone Number' the media file belongs to:
+
+- **Media a customer sent:** the number that received the message. In a workflow started by the [Trigger](#whatsapp-trigger), set 'Phone Number' to **ID** and `{{ $json.metadata.phone_number_id }}`, and 'Media ID' to the message's media ID, for example `{{ $json.messages[0].image.id }}`.
+- **Media you uploaded:** the number you uploaded it with.
+
+With any other number, WhatsApp refuses the request with *Permission denied*, even when the number is yours. 'Phone Number' is required from node version 1.4 (package version 0.8.0). Nodes added earlier show it as optional and keep working without it for now, but ContactWise will soon require it, so set it on your existing Download and Delete nodes.
+
 ## Send and wait for a response
 
 **Send message and wait for response** sends a WhatsApp message with links, pauses the workflow, and continues when the recipient answers.

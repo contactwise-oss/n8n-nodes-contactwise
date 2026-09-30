@@ -115,8 +115,10 @@ function metaErrorFrom(body: Record<string, unknown> | undefined): MetaError | u
 }
 
 /** What to do for the Meta codes users hit most. Anything else gets the channel's general fix. */
-function metaFixFor(code: number | undefined, generalFix: string): string {
+function metaFixFor(code: number | undefined, wording: Wording): string {
 	switch (code) {
+		case 10:
+			return wording.phoneNumberFix ?? wording.metaGeneralFix;
 		case 131047:
 			return 'More than 24 hours have passed since the recipient last messaged you, so only a template can be sent. Send an approved template instead.';
 		case 130429:
@@ -129,7 +131,7 @@ function metaFixFor(code: number | undefined, generalFix: string): string {
 			if (code !== undefined && code >= 132000 && code < 133000) {
 				return 'Check that the template exists in this language, is approved and active, and that the parameters match it.';
 			}
-			return generalFix;
+			return wording.metaGeneralFix;
 	}
 }
 
@@ -182,7 +184,15 @@ interface Wording {
 	noRetry?: boolean;
 	/** What to do again after a 429/503. Defaults to running the workflow again. */
 	retryAdvice?: string;
+	/**
+	 * Set for media calls that name a phone number (TIN-68). Meta's `(#10) Permission denied` and
+	 * the gateway's 403 then mean the media file doesn't belong to 'Phone Number', or none was set.
+	 */
+	phoneNumberFix?: string;
 }
+
+const MEDIA_PHONE_NUMBER_FIX =
+	"Check 'Phone Number': it must be the number the media file belongs to. For media a customer sent, use the number that received the message (the WhatsApp Trigger outputs it in 'metadata'). For media you uploaded, use the number you uploaded it with.";
 
 const WEBHOOK_FIX = "Check ContactWise's response above, then activate the workflow again.";
 
@@ -235,6 +245,7 @@ const CHANNEL_WORDING: Record<Channel, Wording> = {
 		unavailable: "ContactWise can't delete media right now",
 		unknownAdvice: 'Check whether the media file still exists before trying again.',
 		metaGeneralFix: "Check the 'Media ID', then try again.",
+		phoneNumberFix: MEDIA_PHONE_NUMBER_FIX,
 	},
 	'whatsapp-download': {
 		theThing: 'The media file',
@@ -246,6 +257,7 @@ const CHANNEL_WORDING: Record<Channel, Wording> = {
 		unavailable: "ContactWise can't download media right now",
 		unknownAdvice: 'Wait a few minutes and run the workflow again.',
 		metaGeneralFix: "Check the 'Media ID', then try again.",
+		phoneNumberFix: MEDIA_PHONE_NUMBER_FIX,
 		readOnly: {
 			failed: "The media file wasn't downloaded",
 			notFound:
@@ -389,7 +401,7 @@ function interpret(call: FailedCall, wording: Wording): SendFailure {
 			retryable: false,
 			messages: [meta.message],
 			message: `WhatsApp rejected ${wording.metaRequest}: ${meta.message}`,
-			description: `${wording.nothingDone}${detail} ${metaFixFor(meta.code, wording.metaGeneralFix)}${supportTraceHint(traceId)}`,
+			description: `${wording.nothingDone}${detail} ${metaFixFor(meta.code, wording)}${supportTraceHint(traceId)}`,
 		};
 	}
 
@@ -443,15 +455,17 @@ function interpret(call: FailedCall, wording: Wording): SendFailure {
 		};
 	}
 
-	// The gateway's own errors: `{ "error": "<message>" }` (TIN-33).
+	// The gateway's own errors: `{ "error": "<message>" }` (TIN-33). A 403 on a media call means
+	// the phone number is missing or isn't the tenant's (TIN-58).
 	if (gatewayMessage) {
+		const fix = (statusCode === 403 && wording.phoneNumberFix) || wording.metaGeneralFix;
 		return {
 			...base,
 			outcome: 'not-sent',
 			retryable: false,
 			messages: [gatewayMessage],
 			message: `ContactWise rejected ${wording.request}: ${gatewayMessage}`,
-			description: `${wording.nothingDone} ${wording.metaGeneralFix}`,
+			description: `${wording.nothingDone} ${fix}`,
 		};
 	}
 
