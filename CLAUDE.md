@@ -31,8 +31,9 @@ Settings for the `linear-issue-management` and `linear-project-update` skills an
 | Milestone | Contents |
 |---|---|
 | M1 · SMS on npm for self-hosted n8n | The SMS node published to npm for self-hosted customers |
-| M2 · SMS hardening for self-hosted customers | Provenance publishing with the n8n scan (TIN-11), public API docs fixes (TIN-5), live Callback URL and AI Agent tests (TIN-54) |
-| M3 · WhatsApp nodes | The WhatsApp action and trigger nodes (epic TIN-30) |
+| M2 · SMS hardening for self-hosted customers | Provenance publishing with the n8n scan (TIN-11), public API docs fixes (TIN-5), live Callback URL and AI Agent tests (TIN-54), `phone_number_id` on WhatsApp media Download and Delete (TIN-68) |
+| M3 · WhatsApp nodes | The WhatsApp action and trigger nodes (epic TIN-30). Done 2026-09-30 |
+| M5 · WhatsApp extras | Reactions, mark as read with typing indicator, reply-to, sticker, CTA URL, location request and address messages (epic TIN-69). After M2, before M4 |
 | M4 · n8n verification (n8n Cloud) | n8n Cloud only: the npm maintainer check, the reviewers' test tenant, the Creator Portal submission. After the self-hosted work |
 | Backlog · Unscheduled | API-team reference issues (under TIN-20), the SMS Trigger, Phase 2 dropdowns, anything not yet planned |
 

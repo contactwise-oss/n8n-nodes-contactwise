@@ -8,9 +8,16 @@ Guidance for AI coding agents (Claude Code, Codex and others) working in this re
 
 Phase 1 (shipped as 0.1.x) is the `ContactWise API` credential plus the `ContactWise SMS` node: one operation (Send), Indian recipients only, with DLT values (sender, template ID, entity ID, body) entered manually.
 
-The current work (milestone M3, epic TIN-30) is WhatsApp: the `ContactWise WhatsApp` node, then the `ContactWise WhatsApp Trigger`. They reuse the same credential and call the WhatsApp gateway, a transparent proxy over Meta's Graph API (`docs/contactwise-whatsapp-api.md`). The SMS Trigger and API-driven SMS dropdowns come later. Don't build them unless the task asks for it.
+WhatsApp (milestone M3, epic TIN-30, done 2026-09-30, shipped up to 0.7.0) added the `ContactWise WhatsApp` node and the `ContactWise WhatsApp Trigger`. They reuse the same credential and call the WhatsApp gateway, a transparent proxy over Meta's Graph API (`docs/contactwise-whatsapp-api.md`). Beyond parity with n8n's WhatsApp Business Cloud node, they cover interactive messages (buttons, lists) and WhatsApp Flows.
 
-**Status:** scaffolded with the n8n-node CLI (`programmatic/example` template, TIN-7). The credential (TIN-8), the Send operation (TIN-12), and API error mapping with the retry policy (TIN-13) are built. The transport, error mapping and retry policy are shared by all nodes in `nodes/shared/` (TIN-38). If the scaffold is ever regenerated, keep **this** `AGENTS.md` and `CLAUDE.md`, not the template's.
+The current work, in order:
+- **M2** (SMS hardening, plus TIN-68: `phone_number_id` on WhatsApp media Download and Delete)
+- **M5** (epic TIN-69, WhatsApp extras): reactions, mark as read with a typing indicator, reply-to, sticker, CTA URL, location request and address messages
+- **M4** (n8n Cloud verification)
+
+The SMS Trigger, API-driven SMS dropdowns, and WhatsApp template management, business profile and commerce come later. Don't build them unless the task asks for it.
+
+**Status:** scaffolded with the n8n-node CLI (`programmatic/example` template, TIN-7). The credential (TIN-8), the SMS Send operation (TIN-12), API error mapping with the retry policy (TIN-13), and the two WhatsApp nodes (TIN-30) are built. The transport, error mapping and retry policy are shared by all nodes in `nodes/shared/` (TIN-38). If the scaffold is ever regenerated, keep **this** `AGENTS.md` and `CLAUDE.md`, not the template's.
 
 ## Commands
 
